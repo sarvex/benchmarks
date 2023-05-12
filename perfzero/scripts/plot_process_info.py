@@ -35,15 +35,14 @@ def visualize(file_path):
     entries = [json.loads(line) for line in f.readlines() if line.strip()]
 
   if not entries:
-    print('There is no data in file {}'.format(file_path))
+    print(f'There is no data in file {file_path}')
     return
 
   pdf = backend_pdf.PdfPages("process_info.pdf")
-  idx = 0
   names = [name for name in entries[0].keys() if name != 'time']
   times = [entry['time'] for entry in entries]
 
-  for name in names:
+  for idx, name in enumerate(names):
     values = [entry[name] for entry in entries]
     fig = plt.figure()
     ax = plt.gca()
@@ -55,11 +54,9 @@ def visualize(file_path):
     plt.ylim(ymin=0)
     plt.legend(loc = 'upper left')
     pdf.savefig(fig)
-    idx += 1
-
   plt.show()
   pdf.close()
-  print('Generated process_info.pdf from {}'.format(file_path))
+  print(f'Generated process_info.pdf from {file_path}')
 
 
 if __name__ == '__main__':

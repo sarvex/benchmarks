@@ -90,7 +90,7 @@ def compute_map(predictions, val_json_file):
                   'ARmax10', 'ARmax100', 'ARs', 'ARm', 'ARl']
 
   # Prefix with "COCO" to group in TensorBoard.
-  return {"COCO/" + key: value for key, value in zip(metric_names, E.stats)}
+  return {f"COCO/{key}": value for key, value in zip(metric_names, E.stats)}
 
 
 def calc_iou(target, candidates):
@@ -109,8 +109,7 @@ def calc_iou(target, candidates):
   delta2 = target_tiled[:,2:] - candidates[:,:2]
   area2 = delta2[:,0] * delta2[:,1]
 
-  iou = intersect/(area1 + area2 - intersect)
-  return iou
+  return intersect/(area1 + area2 - intersect)
 
 
 # TODO(haoyuzhang): Rewrite this NumPy based implementation to TensorFlow based
@@ -181,7 +180,7 @@ def decode_single(bboxes_in, scores_in, criteria, max_output, max_num=200):
     scores_out.append(score[candidates])
     labels_out.extend([i]*len(candidates))
 
-  if len(scores_out) == 0:
+  if not scores_out:
     tf.logging.info("No objects detected. Returning dummy values.")
     return (
         np.zeros(shape=(1, 4), dtype=np.float32),

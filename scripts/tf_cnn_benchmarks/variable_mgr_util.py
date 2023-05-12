@@ -183,8 +183,7 @@ class OverrideCachingDevice(object):
       self.sizes[device_index] += size
 
     kwargs['caching_device'] = device_name
-    var = getter(*args, **kwargs)
-    return var
+    return getter(*args, **kwargs)
 
 
 # To be used with custom_getter on tf.get_variable. Ensures the created variable
@@ -304,14 +303,10 @@ class StagedModelVariable(object):
     return self.real_var.assign_sub(delta_get_op, read_value=read_value)
 
   @staticmethod
-  # pylint: disable=bad-staticmethod-argument,invalid-name
   def _TensorConversionFunction(self, dtype=None, name=None, as_ref=False):
     """Utility function for converting a StagedModelVariable to a Tensor."""
     del dtype, name  # unused: this function returns the cached ref or value.
-    if as_ref:
-      return self._ref()
-    else:
-      return self._value()
+    return self._ref() if as_ref else self._value()
 
 
 ops.register_tensor_conversion_function(
@@ -512,12 +507,11 @@ def flatten_nested_indexed_slices(grad):
   assert isinstance(grad, ops.IndexedSlices)
   if isinstance(grad.values, ops.Tensor):
     return grad
-  else:
-    assert isinstance(grad.values, ops.IndexedSlices)
-    g = flatten_nested_indexed_slices(grad.values)
-    return ops.IndexedSlices(g.values, array_ops.gather(grad.indices,
-                                                        g.indices),
-                             g.dense_shape)
+  assert isinstance(grad.values, ops.IndexedSlices)
+  g = flatten_nested_indexed_slices(grad.values)
+  return ops.IndexedSlices(g.values, array_ops.gather(grad.indices,
+                                                      g.indices),
+                           g.dense_shape)
 
 
 def aggregate_indexed_slices_gradients(grads):
@@ -539,13 +533,11 @@ def aggregate_indexed_slices_gradients(grads):
     grads = math_ops._as_indexed_slices_list(grads)  # pylint: disable=protected-access
 
     grads = [flatten_nested_indexed_slices(x) for x in grads]
-    # Form IndexedSlices out of the concatenated values and indices.
-    concat_grad = ops.IndexedSlices(
+    return ops.IndexedSlices(
         array_ops.concat([x.values for x in grads], axis=0),
         array_ops.concat([x.indices for x in grads], axis=0),
-        grads[0].dense_shape)
-
-    return concat_grad
+        grads[0].dense_shape,
+    )
 
 
 def aggregate_single_gradient_using_copy(grad_and_vars, use_mean,
@@ -661,7 +653,7 @@ def byte_size_load_fn(op):
       single output is not fully-defined.
   """
   if len(op.outputs) != 1:
-    raise ValueError('Op %s must have a single output' % op)
+    raise ValueError(f'Op {op} must have a single output')
   output = op.outputs[0]
   elem_size = output.dtype.size
   shape = output.get_shape()

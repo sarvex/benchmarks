@@ -117,7 +117,7 @@ def _get_model_map(dataset_name):
   elif dataset_name == 'coco':
     return _model_name_to_object_detection_model
   else:
-    raise ValueError('Invalid dataset name: %s' % dataset_name)
+    raise ValueError(f'Invalid dataset name: {dataset_name}')
 
 
 # A model map dict can have this string as a value when TF2 is used, to indicate
@@ -142,8 +142,9 @@ def register_model(model_name, dataset_name, model_func):
   """Register a new model that can be obtained with `get_model_config`."""
   model_map = _get_model_map(dataset_name)
   if model_name in model_map:
-    raise ValueError('Model "%s" is already registered for dataset "%s"' %
-                     (model_name, dataset_name))
+    raise ValueError(
+        f'Model "{model_name}" is already registered for dataset "{dataset_name}"'
+    )
   model_map[model_name] = model_func
 
 

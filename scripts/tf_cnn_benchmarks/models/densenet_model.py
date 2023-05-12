@@ -57,9 +57,9 @@ class DensenetCifar10Model(model_lib.CNNModel):
 
   def add_inference(self, cnn):
     if self.layer_counts is None:
-      raise ValueError('Layer counts not specified for %s' % self.get_model())
+      raise ValueError(f'Layer counts not specified for {self.get_model()}')
     if self.growth_rate is None:
-      raise ValueError('Growth rate not specified for %s' % self.get_model())
+      raise ValueError(f'Growth rate not specified for {self.get_model()}')
 
     cnn.conv(16, 3, 3, 1, 1, activation=None)
     # Block 1
@@ -83,7 +83,7 @@ class DensenetCifar10Model(model_lib.CNNModel):
     num_batches_per_epoch = 50000 // batch_size
     boundaries = num_batches_per_epoch * np.array([150, 225, 300],
                                                   dtype=np.int64)
-    boundaries = [x for x in boundaries]
+    boundaries = list(boundaries)
     values = [0.1, 0.01, 0.001, 0.0001]
     return tf.train.piecewise_constant(global_step, boundaries, values)
 

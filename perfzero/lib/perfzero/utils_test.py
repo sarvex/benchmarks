@@ -74,23 +74,23 @@ class TestUtils(unittest.TestCase, tf.test.Benchmark):
   @patch('perfzero.utils.get_git_repo_info')
   @patch('perfzero.utils.run_commands')
   def test_checkout_git_repos(self, run_commands_mock, get_git_repo_info_mock):
-    git_repo_1 = {}
-    git_repo_1['url'] = 'url_1'
-    git_repo_1['local_path'] = 'local_path_1'
-    git_repo_1['dir_name'] = 'dir_name_1'
-    git_repo_1['branch'] = 'branch_1'
-    git_repo_1['git_hash'] = 'git_hash_1'
-
-    git_repo_2 = {}
-    git_repo_2['url'] = 'url_2'
-    git_repo_2['local_path'] = 'local_path_2'
-    git_repo_2['dir_name'] = 'dir_name_2'
-    git_repo_2['branch'] = 'branch_2'
-
+    git_repo_1 = {
+        'url': 'url_1',
+        'local_path': 'local_path_1',
+        'dir_name': 'dir_name_1',
+        'branch': 'branch_1',
+        'git_hash': 'git_hash_1',
+    }
+    git_repo_2 = {
+        'url': 'url_2',
+        'local_path': 'local_path_2',
+        'dir_name': 'dir_name_2',
+        'branch': 'branch_2',
+    }
     git_repo_info_1 = {'url': 'url_1'}
     git_repo_info_2 = {'url': 'url_2'}
     get_git_repo_info_mock.side_effect = \
-        lambda local_path: git_repo_info_1 if local_path == 'local_path_1' else git_repo_info_2  # pylint: disable=line-too-long
+          lambda local_path: git_repo_info_1 if local_path == 'local_path_1' else git_repo_info_2  # pylint: disable=line-too-long
     site_package_info = utils.checkout_git_repos([git_repo_1, git_repo_2],
                                                  False)
 

@@ -62,7 +62,7 @@ class SSD300Model(model_lib.CNNModel):
 
     # Currently only support ResNet-34 as backbone model
     if backbone != 'resnet34':
-      raise ValueError('Invalid backbone model %s for SSD.' % backbone)
+      raise ValueError(f'Invalid backbone model {backbone} for SSD.')
     mlperf.logger.log(key=mlperf.tags.BACKBONE, value=backbone)
 
     # Number of channels and default boxes associated with the following layers:
@@ -153,7 +153,7 @@ class SSD300Model(model_lib.CNNModel):
 
     # ResNet-34 block group 1
     # Input 150x150, output 75x75
-    for i in range(resnet34_layers[0]):
+    for _ in range(resnet34_layers[0]):
       # Last argument forces residual_block to use projection shortcut, even
       # though the numbers of input and output channels are equal
       resnet_model.residual_block(cnn, 64, 1, version)
@@ -318,12 +318,11 @@ class SSD300Model(model_lib.CNNModel):
     base_lr = self.learning_rate
     if self.params.variable_update == 'replicated':
       base_lr = self.learning_rate / self.params.num_gpus
-    scaled_lr = base_lr * (batch_size / self.base_lr_batch_size)
-    return scaled_lr
+    return base_lr * (batch_size / self.base_lr_batch_size)
 
   def _collect_backbone_vars(self):
-    backbone_vars = tf.get_collection(
-        tf.GraphKeys.GLOBAL_VARIABLES, scope='.*'+ BACKBONE_MODEL_SCOPE_NAME)
+    backbone_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
+                                      scope=f'.*{BACKBONE_MODEL_SCOPE_NAME}')
     var_list = {}
 
     # Assume variables in the checkpoint are following the naming convention of
@@ -335,21 +334,17 @@ class SSD300Model(model_lib.CNNModel):
       # conv2d variable example (model <-- checkpoint):
       #   v/cg/conv24/conv2d/kernel:0 <-- conv2d_24/kernel
       if 'conv2d' in v.name:
-        re_match = re.search(r'conv(\d+)/conv2d/(.+):', v.name)
-        if re_match:
-          layer_id = int(re_match.group(1))
-          param_name = re_match.group(2)
+        if re_match := re.search(r'conv(\d+)/conv2d/(.+):', v.name):
+          layer_id = int(re_match[1])
+          param_name = re_match[2]
           vname_in_ckpt = self._var_name_in_official_model_ckpt(
               'conv2d', layer_id, param_name)
           var_list[vname_in_ckpt] = v
 
-      # batchnorm varariable example:
-      #   v/cg/conv24/batchnorm25/gamma:0 <-- batch_normalization_25/gamma
       elif 'batchnorm' in v.name:
-        re_match = re.search(r'batchnorm(\d+)/(.+):', v.name)
-        if re_match:
-          layer_id = int(re_match.group(1))
-          param_name = re_match.group(2)
+        if re_match := re.search(r'batchnorm(\d+)/(.+):', v.name):
+          layer_id = int(re_match[1])
+          param_name = re_match[2]
           vname_in_ckpt = self._var_name_in_official_model_ckpt(
               'batch_normalization', layer_id, param_name)
           var_list[vname_in_ckpt] = v
@@ -360,8 +355,8 @@ class SSD300Model(model_lib.CNNModel):
     """Return variable names according to convention in TF official models."""
     vname_in_ckpt = layer_name
     if layer_id > 0:
-      vname_in_ckpt += '_' + str(layer_id)
-    vname_in_ckpt += '/' + param_name
+      vname_in_ckpt += f'_{str(layer_id)}'
+    vname_in_ckpt += f'/{param_name}'
     return vname_in_ckpt
 
   def loss_function(self, inputs, build_network_result):

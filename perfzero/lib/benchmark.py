@@ -98,12 +98,10 @@ class BenchmarkRunner(object):
         class_instance = utils.instantiate_benchmark_class(
           benchmark_class, '/dev/null', '', None, {},
           benchmark_class_type=self.config.benchmark_class_type)
-        
-        for benchmark_method_name in dir(class_instance):
-          if re.match(pattern, benchmark_method_name):
-            benchmark_methods.append(benchmark_class + '.' +
-                                     benchmark_method_name)
 
+        benchmark_methods.extend(f'{benchmark_class}.{benchmark_method_name}'
+                                 for benchmark_method_name in dir(class_instance)
+                                 if re.match(pattern, benchmark_method_name))
     logging.info('The following benchmark methods will be executed: %s',
                  benchmark_methods)
     return benchmark_methods
@@ -148,14 +146,14 @@ class BenchmarkRunner(object):
       site_package_info = self._setup()
       benchmark_methods = self._get_benchmark_methods()
 
-      print('Setup complete. Running {} trials'.format(num_trials))
+      print(f'Setup complete. Running {num_trials} trials')
       for trial_id in range(1, num_trials + 1):
-        print('Running trial {} / {}'.format(trial_id, num_trials))
+        print(f'Running trial {trial_id} / {num_trials}')
         (trial_has_exception, trial_success_results,
          trial_output_dirs, trial_execution_time) = self._run_benchmarks_trial(
              harness_info, site_package_info, benchmark_methods, trial_id)
 
-        trial_key = 'trial_{}'.format(trial_id)
+        trial_key = f'trial_{trial_id}'
         has_exception |= trial_has_exception
         self.benchmark_execution_time[trial_key] = trial_execution_time
         benchmark_success_results[trial_key] = trial_success_results

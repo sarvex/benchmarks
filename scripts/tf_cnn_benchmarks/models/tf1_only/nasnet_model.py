@@ -236,10 +236,7 @@ def _build_aux_head(net, end_points, num_classes, hparams, scope):
       aux_logits = tf.nn.relu(aux_logits)
       # Shape of feature map before the final layer.
       shape = aux_logits.shape
-      if hparams.data_format == 'NHWC':
-        shape = shape[1:3]
-      else:
-        shape = shape[2:4]
+      shape = shape[1:3] if hparams.data_format == 'NHWC' else shape[2:4]
       aux_logits = slim.conv2d(aux_logits, 768, shape, padding='VALID')
       aux_logits = slim.batch_norm(aux_logits, scope='aux_bn1')
       aux_logits = tf.nn.relu(aux_logits)
@@ -268,11 +265,12 @@ def _imagenet_stem(inputs, hparams, stem_cell):
   for cell_num in range(num_stem_cells):
     net = stem_cell(
         net,
-        scope='cell_stem_{}'.format(cell_num),
+        scope=f'cell_stem_{cell_num}',
         filter_scaling=filter_scaling,
         stride=2,
         prev_layer=cell_outputs[-2],
-        cell_num=cell_num)
+        cell_num=cell_num,
+    )
     cell_outputs.append(net)
     filter_scaling *= hparams.filter_scaling_rate
   return net, cell_outputs
@@ -542,7 +540,7 @@ class NasnetModel(model.CNNModel):
     super(NasnetModel, self).__init__('nasnet', 224, 32, 0.005, params=params)
 
   def add_inference(self, cnn):
-    tf.logging.info('input_image_shape: {}'.format(cnn.top_layer.shape))
+    tf.logging.info(f'input_image_shape: {cnn.top_layer.shape}')
     cnn.top_layer, _ = build_nasnet_mobile(
         images=cnn.top_layer,
         is_training=cnn.phase_train,
@@ -558,7 +556,7 @@ class NasnetLargeModel(model.CNNModel):
         'nasnet', 331, 16, 0.005, params=params)
 
   def add_inference(self, cnn):
-    tf.logging.info('input_image_shape: {}'.format(cnn.top_layer.shape))
+    tf.logging.info(f'input_image_shape: {cnn.top_layer.shape}')
     cnn.top_layer, _ = build_nasnet_large(
         images=cnn.top_layer,
         is_training=cnn.phase_train,
@@ -574,7 +572,7 @@ class NasnetCifarModel(model.CNNModel):
         'nasnet', 32, 32, 0.025, params=params)
 
   def add_inference(self, cnn):
-    tf.logging.info('input_image_shape: {}'.format(cnn.top_layer.shape))
+    tf.logging.info(f'input_image_shape: {cnn.top_layer.shape}')
     cnn.top_layer, _ = build_nasnet_cifar(
         images=cnn.top_layer,
         is_training=cnn.phase_train,

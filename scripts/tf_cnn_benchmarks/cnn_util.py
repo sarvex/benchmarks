@@ -237,7 +237,7 @@ class GrpcClusterManager(BaseClusterManager):
   def __init__(self, params, config_proto):
     super(GrpcClusterManager, self).__init__(params)
     if params.job_name == 'controller':
-      self._target = 'grpc://%s' % self._cluster_spec.job_tasks('worker')[0]
+      self._target = f"grpc://{self._cluster_spec.job_tasks('worker')[0]}"
     else:
       self._server = tf.train.Server(self._cluster_spec,
                                      job_name=params.job_name,

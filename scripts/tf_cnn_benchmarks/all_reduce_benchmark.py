@@ -126,17 +126,11 @@ def build_all_reduce_iterations(all_device_tensors, tower_devices, variable_mgr,
           ])
       all_device_tensors = new_all_device_tensors
 
-      # Step 3. Add control dependencies to delay the next iteration until this
-      # iteration is complete. To avoid extra overhead, we do not have any
-      # cross-device control dependencies, which means it's possible for two
-      # iterations to slightly overlap.
-      new_all_device_tensors = []
-      for device_tensors in all_device_tensors:
-        new_all_device_tensors.append([
-            control_flow_ops.with_dependencies(
-                device_tensors, t, name='identity_after_dependencies')
-            for t in device_tensors
-        ])
+      new_all_device_tensors = [[
+          control_flow_ops.with_dependencies(
+              device_tensors, t, name='identity_after_dependencies')
+          for t in device_tensors
+      ] for device_tensors in all_device_tensors]
       all_device_tensors = new_all_device_tensors
 
   # To prevent the dependency optimizer from removing every op we created,
@@ -224,8 +218,9 @@ def run_graph(benchmark_op, bench_cnn, init_ops, dummy_loss_op):
           image_producer=None,
           params=bench_cnn.params,
           show_images_per_sec=False)
-    log_fn('Average time per step: %s' %
-           ((time.perf_counter() - start) / bench_cnn.num_batches))
+    log_fn(
+        f'Average time per step: {(time.perf_counter() - start) / bench_cnn.num_batches}'
+    )
 
 
 def run_benchmark(bench_cnn, num_iters):
@@ -257,8 +252,9 @@ def run_benchmark(bench_cnn, num_iters):
   if bench_cnn.graph_file:
     path, filename = os.path.split(bench_cnn.graph_file)
     as_text = filename.endswith('txt')
-    log_fn('Writing GraphDef as %s to %s' % (
-        'text' if as_text else 'binary', bench_cnn.graph_file))
+    log_fn(
+        f"Writing GraphDef as {'text' if as_text else 'binary'} to {bench_cnn.graph_file}"
+    )
     tf.train.write_graph(tf.get_default_graph().as_graph_def(add_shapes=True),
                          path, filename, as_text)
 
@@ -273,8 +269,8 @@ def main(positional_arguments):
   # arguments.
   assert len(positional_arguments) >= 1
   if len(positional_arguments) > 1:
-    raise ValueError('Received unknown positional arguments: %s'
-                     % positional_arguments[1:])
+    raise ValueError(
+        f'Received unknown positional arguments: {positional_arguments[1:]}')
 
   params = benchmark_cnn.make_params_from_flags()
   params = benchmark_cnn.setup(params)

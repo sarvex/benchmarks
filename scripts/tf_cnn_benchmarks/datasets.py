@@ -52,7 +52,7 @@ class Dataset(object):
     self._num_classes = num_classes
 
   def tf_record_pattern(self, subset):
-    return os.path.join(self.data_dir, '%s-*-of-*' % subset)
+    return os.path.join(self.data_dir, f'{subset}-*-of-*')
 
   def reader(self):
     return tf.TFRecordReader()
@@ -134,7 +134,7 @@ class ImagenetDataset(ImageDataset):
     elif subset == 'validation':
       return IMAGENET_NUM_VAL_IMAGES
     else:
-      raise ValueError('Invalid data subset "%s"' % subset)
+      raise ValueError(f'Invalid data subset "{subset}"')
 
 
 class Cifar10Dataset(ImageDataset):
@@ -164,7 +164,7 @@ class Cifar10Dataset(ImageDataset):
     elif subset == 'validation':
       filenames = [os.path.join(self.data_dir, 'test_batch')]
     else:
-      raise ValueError('Invalid data subset "%s"' % subset)
+      raise ValueError(f'Invalid data subset "{subset}"')
 
     inputs = []
     for filename in filenames:
@@ -186,7 +186,7 @@ class Cifar10Dataset(ImageDataset):
     elif subset == 'validation':
       return 10000
     else:
-      raise ValueError('Invalid data subset "%s"' % subset)
+      raise ValueError(f'Invalid data subset "{subset}"')
 
 
 class COCODataset(ImageDataset):
@@ -202,7 +202,7 @@ class COCODataset(ImageDataset):
     elif subset == 'validation':
       return COCO_NUM_VAL_IMAGES
     else:
-      raise ValueError('Invalid data subset "%s"' % subset)
+      raise ValueError(f'Invalid data subset "{subset}"')
 
 
 _SUPPORTED_DATASETS = {
@@ -245,7 +245,7 @@ def create_dataset(data_dir, data_name):
       raise ValueError('Could not identify name of dataset. '
                        'Please specify with --data_name option.')
   if data_name not in _SUPPORTED_DATASETS:
-    raise ValueError('Unknown dataset. Must be one of %s' % ', '.join(
-        [key for key in sorted(_SUPPORTED_DATASETS.keys())]))
+    raise ValueError(('Unknown dataset. Must be one of %s' %
+                      ', '.join(list(sorted(_SUPPORTED_DATASETS.keys())))))
 
   return _SUPPORTED_DATASETS[data_name](data_dir)

@@ -86,8 +86,7 @@ class ConvNetBuilder(object):
       if not self.use_tf_layers:
         return getter(*args, **kwargs)
       requested_dtype = kwargs['dtype']
-      if not (requested_dtype == tf.float32 and
-              self.variable_dtype == tf.float16):
+      if requested_dtype != tf.float32 or self.variable_dtype != tf.float16:
         # Only change the variable dtype if doing so does not decrease variable
         # precision.
         kwargs['dtype'] = self.variable_dtype
@@ -100,6 +99,7 @@ class ConvNetBuilder(object):
       if var.dtype.base_dtype != requested_dtype:
         var = tf.cast(var, requested_dtype)
       return var
+
     return inner_custom_getter
 
   @contextlib.contextmanager
@@ -132,21 +132,18 @@ class ConvNetBuilder(object):
                                 padding, self.channel_pos,
                                 kernel_initializer=kernel_initializer,
                                 use_bias=False)
-    else:
-      weights_shape = [kernel_size[0], kernel_size[1], num_channels_in, filters]
-      # We use the name 'conv2d/kernel' so the variable has the same name as its
-      # tf.layers equivalent. This way, if a checkpoint is written when
-      # self.use_tf_layers == True, it can be loaded when
-      # self.use_tf_layers == False, and vice versa.
-      weights = self.get_variable('conv2d/kernel', weights_shape,
-                                  self.variable_dtype, self.dtype,
-                                  initializer=kernel_initializer)
-      if self.data_format == 'NHWC':
-        strides = [1] + strides + [1]
-      else:
-        strides = [1, 1] + strides
-      return tf.nn.conv2d(input_layer, weights, strides, padding,
-                          data_format=self.data_format)
+    weights_shape = [kernel_size[0], kernel_size[1], num_channels_in, filters]
+    # We use the name 'conv2d/kernel' so the variable has the same name as its
+    # tf.layers equivalent. This way, if a checkpoint is written when
+    # self.use_tf_layers == True, it can be loaded when
+    # self.use_tf_layers == False, and vice versa.
+    weights = self.get_variable('conv2d/kernel', weights_shape,
+                                self.variable_dtype, self.dtype,
+                                initializer=kernel_initializer)
+    strides = ([1] + strides + [1] if self.data_format == 'NHWC' else [1, 1] +
+               strides)
+    return tf.nn.conv2d(input_layer, weights, strides, padding,
+                        data_format=self.data_format)
 
   def conv(self,
            num_out_channels,
@@ -182,31 +179,30 @@ class ConvNetBuilder(object):
                                  kernel_size=[k_height, k_width],
                                  strides=[d_height, d_width], padding=mode,
                                  kernel_initializer=kernel_initializer)
-      else:  # Special padding mode for ResNet models
-        if d_height == 1 and d_width == 1:
-          conv = self._conv2d_impl(input_layer, num_channels_in,
-                                   num_out_channels,
-                                   kernel_size=[k_height, k_width],
-                                   strides=[d_height, d_width], padding='SAME',
-                                   kernel_initializer=kernel_initializer)
-        else:
-          rate = 1  # Unused (for 'a trous' convolutions)
-          kernel_height_effective = k_height + (k_height - 1) * (rate - 1)
-          pad_h_beg = (kernel_height_effective - 1) // 2
-          pad_h_end = kernel_height_effective - 1 - pad_h_beg
-          kernel_width_effective = k_width + (k_width - 1) * (rate - 1)
-          pad_w_beg = (kernel_width_effective - 1) // 2
-          pad_w_end = kernel_width_effective - 1 - pad_w_beg
-          padding = [[0, 0], [pad_h_beg, pad_h_end],
-                     [pad_w_beg, pad_w_end], [0, 0]]
-          if self.data_format == 'NCHW':
-            padding = [padding[0], padding[3], padding[1], padding[2]]
-          padded_input_layer = tf.pad(input_layer, padding)
-          conv = self._conv2d_impl(padded_input_layer, num_channels_in,
-                                   num_out_channels,
-                                   kernel_size=[k_height, k_width],
-                                   strides=[d_height, d_width], padding='VALID',
-                                   kernel_initializer=kernel_initializer)
+      elif d_height == 1 and d_width == 1:
+        conv = self._conv2d_impl(input_layer, num_channels_in,
+                                 num_out_channels,
+                                 kernel_size=[k_height, k_width],
+                                 strides=[d_height, d_width], padding='SAME',
+                                 kernel_initializer=kernel_initializer)
+      else:
+        rate = 1  # Unused (for 'a trous' convolutions)
+        kernel_height_effective = k_height + (k_height - 1) * (rate - 1)
+        pad_h_beg = (kernel_height_effective - 1) // 2
+        pad_h_end = kernel_height_effective - 1 - pad_h_beg
+        kernel_width_effective = k_width + (k_width - 1) * (rate - 1)
+        pad_w_beg = (kernel_width_effective - 1) // 2
+        pad_w_end = kernel_width_effective - 1 - pad_w_beg
+        padding = [[0, 0], [pad_h_beg, pad_h_end],
+                   [pad_w_beg, pad_w_end], [0, 0]]
+        if self.data_format == 'NCHW':
+          padding = [padding[0], padding[3], padding[1], padding[2]]
+        padded_input_layer = tf.pad(input_layer, padding)
+        conv = self._conv2d_impl(padded_input_layer, num_channels_in,
+                                 num_out_channels,
+                                 kernel_size=[k_height, k_width],
+                                 strides=[d_height, d_width], padding='VALID',
+                                 kernel_initializer=kernel_initializer)
       if use_batch_norm is None:
         use_batch_norm = self.use_batch_norm
       mlperf.logger.log_conv2d(input_tensor=input_layer, output_tensor=conv,
@@ -214,20 +210,19 @@ class ConvNetBuilder(object):
                                filters=num_out_channels,
                                initializer=kernel_initializer,
                                use_bias=not use_batch_norm and bias is not None)
-      if not use_batch_norm:
-        if bias is not None:
-          biases = self.get_variable('biases', [num_out_channels],
-                                     self.variable_dtype, self.dtype,
-                                     initializer=tf.constant_initializer(bias))
-          biased = tf.reshape(
-              tf.nn.bias_add(conv, biases, data_format=self.data_format),
-              conv.get_shape())
-        else:
-          biased = conv
-      else:
+      if use_batch_norm:
         self.top_layer = conv
         self.top_size = num_out_channels
         biased = self.batch_norm(**self.batch_norm_config)
+      elif bias is not None:
+        biases = self.get_variable('biases', [num_out_channels],
+                                   self.variable_dtype, self.dtype,
+                                   initializer=tf.constant_initializer(bias))
+        biased = tf.reshape(
+            tf.nn.bias_add(conv, biases, data_format=self.data_format),
+            conv.get_shape())
+      else:
+        biased = conv
       if activation == 'relu':
         mlperf.logger.log(key=mlperf.tags.MODEL_HP_RELU)
         conv1 = tf.nn.relu(biased)
@@ -383,7 +378,7 @@ class ConvNetBuilder(object):
           col_layer_sizes[c].append(self.top_size)
       catdim = 3 if self.data_format == 'NHWC' else 1
       self.top_layer = tf.concat([layers[-1] for layers in col_layers], catdim)
-      self.top_size = sum([sizes[-1] for sizes in col_layer_sizes])
+      self.top_size = sum(sizes[-1] for sizes in col_layer_sizes)
       return self.top_layer
 
   def spatial_mean(self, keep_dims=False):

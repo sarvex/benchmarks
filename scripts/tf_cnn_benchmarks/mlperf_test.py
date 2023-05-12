@@ -173,7 +173,7 @@ class MlPerfComplianceTest(tf.test.TestCase):
         diff_counter = Counter(log_regexes)
         diff_counter.subtract(self.EXPECTED_LOG_REGEXES)
         differences = []
-        for regex in (k for k in diff_counter.keys() if diff_counter[k]):
+        for regex in (k for k in diff_counter if diff_counter[k]):
           found_count = log_regexes[regex]
           expected_count = self.EXPECTED_LOG_REGEXES[regex]
           differences.append('  For regex %s: Found %d lines matching but '

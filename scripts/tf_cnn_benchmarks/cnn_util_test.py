@@ -35,7 +35,7 @@ class CnnUtilBarrierTest(tf.test.TestCase):
     barrier = cnn_util.Barrier(num_tasks)
     threads = []
     sync_matrix = []
-    for i in range(num_tasks):
+    for _ in range(num_tasks):
       sync_times = [0] * num_waits
       thread = threading.Thread(
           target=self._run_task, args=(barrier, sync_times))
@@ -47,8 +47,9 @@ class CnnUtilBarrierTest(tf.test.TestCase):
     for wait_index in range(num_waits - 1):
       # Max of times at iteration i < min of times at iteration i + 1
       self.assertLessEqual(
-          max([sync_matrix[i][wait_index] for i in range(num_tasks)]),
-          min([sync_matrix[i][wait_index + 1] for i in range(num_tasks)]))
+          max(sync_matrix[i][wait_index] for i in range(num_tasks)),
+          min(sync_matrix[i][wait_index + 1] for i in range(num_tasks)),
+      )
 
   def _run_task(self, barrier, sync_times):
     for wait_index in range(len(sync_times)):

@@ -330,11 +330,10 @@ class PerfZeroConfig(object):
                          '--bigquery_project_name is not')
 
   def get_env_vars(self):
-    env_vars = {}
-    for key in os.environ.keys():
-      if key.startswith('PERFZERO_'):
-        env_vars[key] = os.environ[key]
-    return env_vars
+    return {
+        key: os.environ[key]
+        for key in os.environ if key.startswith('PERFZERO_')
+    }
 
   def get_flags(self):
     not_none_flags = {}
@@ -352,10 +351,10 @@ class PerfZeroConfig(object):
 
     for repo_entry in self.git_repos_str.split(','):
       parts = repo_entry.split(';')
-      git_repo = {}
-      git_repo['url'] = parts[0]
-      # Assume the git url has format */{dir_name}.git
-      git_repo['dir_name'] = parts[0].rsplit('/', 1)[-1].rsplit('.', 1)[0]
+      git_repo = {
+          'url': parts[0],
+          'dir_name': parts[0].rsplit('/', 1)[-1].rsplit('.', 1)[0],
+      }
       git_repo['local_path'] = os.path.join(site_packages_dir,
                                             git_repo['dir_name'])
       if len(parts) >= 2:

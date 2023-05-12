@@ -98,12 +98,11 @@ def upload_execution_summary(bigquery_project_name, bigquery_dataset_table_name,
   client = bigquery.Client(
       project=bigquery_project_name, credentials=credentials)
 
-  benchmark_summary_input = {}
-  for key, value in execution_summary.items():
-    if isinstance(value, dict):
-      benchmark_summary_input[key] = unicode(json.dumps(value))
-    else:
-      benchmark_summary_input[key] = unicode(value)
+  benchmark_summary_input = {
+      key:
+      unicode(json.dumps(value)) if isinstance(value, dict) else unicode(value)
+      for key, value in execution_summary.items()
+  }
   logging.debug('Bigquery input for benchmark_summary table is %s',
                 json.dumps(benchmark_summary_input, indent=2))
 
@@ -136,20 +135,21 @@ def upload_execution_summary(bigquery_project_name, bigquery_dataset_table_name,
 
 def build_benchmark_result(raw_benchmark_result, has_exception, trial_id):
   """Converts test_log.proto format to PerfZero format."""
-  benchmark_result = {}
-  benchmark_result['name'] = raw_benchmark_result['name']
-  benchmark_result['wall_time'] = raw_benchmark_result['wall_time']
-
+  benchmark_result = {
+      'name': raw_benchmark_result['name'],
+      'wall_time': raw_benchmark_result['wall_time'],
+  }
   succeeded = not has_exception
   extras = []
   for name in raw_benchmark_result.get('extras', {}):
-    entry = {}
-    entry['name'] = name
-
-    if 'double_value' in raw_benchmark_result['extras'][name]:
-      entry['value'] = raw_benchmark_result['extras'][name]['double_value']
-    else:
-      entry['value'] = raw_benchmark_result['extras'][name]['string_value']
+    entry = {
+        'name':
+        name,
+        'value':
+        raw_benchmark_result['extras'][name]['double_value']
+        if 'double_value' in raw_benchmark_result['extras'][name] else
+        raw_benchmark_result['extras'][name]['string_value'],
+    }
     extras.append(entry)
 
   metrics = []
@@ -180,29 +180,30 @@ def build_execution_summary(execution_timestamp, execution_id,
   # pylint: disable=C6204
   import tensorflow as tf
 
-  benchmark_info = {}
-  benchmark_info['harness_name'] = 'perfzero'
-  benchmark_info['harness_info'] = harness_info
-  benchmark_info['has_exception'] = has_exception
+  benchmark_info = {
+      'harness_name': 'perfzero',
+      'harness_info': harness_info,
+      'has_exception': has_exception,
+  }
   if execution_label:
     benchmark_info['execution_label'] = execution_label
   if output_gcs_url:
-    benchmark_info['output_url'] = '{}/{}/'.format(output_gcs_url, execution_id)
+    benchmark_info['output_url'] = f'{output_gcs_url}/{execution_id}/'
   if env_vars:
     benchmark_info['env_vars'] = env_vars
   if flags:
     benchmark_info['flags'] = flags
   benchmark_info['site_package_info'] = site_package_info
 
-  ml_framework_info = {}
-  ml_framework_info['name'] = 'tensorflow'
-  ml_framework_info['version'] = tf.__version__
-  # tf.__git_version__ in Python3 has format b'version_string'
-  if tf.__git_version__[0] == 'b':
-    ml_framework_info['build_version'] = tf.__git_version__[2:-1]
-  else:
-    ml_framework_info['build_version'] = tf.__git_version__
-
+  ml_framework_info = {
+      'name':
+      'tensorflow',
+      'version':
+      tf.__version__,
+      'build_version':
+      tf.__git_version__[2:-1]
+      if tf.__git_version__[0] == 'b' else tf.__git_version__,
+  }
   if ml_framework_build_label:
     ml_framework_info['build_label'] = ml_framework_build_label
 
@@ -212,8 +213,7 @@ def build_execution_summary(execution_timestamp, execution_id,
   if system_name:
     system_info['system_name'] = system_name
   if not is_tpu_benchmark:
-    gpu_info = utils.get_gpu_info()
-    if gpu_info:
+    if gpu_info := utils.get_gpu_info():
       system_info['accelerator_driver_version'] = gpu_info['gpu_driver_version']
       system_info['accelerator_model'] = gpu_info['gpu_model']
       system_info['accelerator_count'] = gpu_info['gpu_count']
@@ -223,14 +223,15 @@ def build_execution_summary(execution_timestamp, execution_id,
   system_info['cpu_socket_count'] = utils.get_cpu_socket_count()
   system_info['hostname'] = socket.gethostname()
 
-  execution_summary = {}
-  execution_summary['execution_id'] = execution_id
-  execution_summary['execution_timestamp'] = execution_timestamp
-  execution_summary['benchmark_result'] = benchmark_result
-  execution_summary['benchmark_info'] = benchmark_info
-  execution_summary['setup_info'] = {}
-  execution_summary['ml_framework_info'] = ml_framework_info
-  execution_summary['system_info'] = system_info
+  execution_summary = {
+      'execution_id': execution_id,
+      'execution_timestamp': execution_timestamp,
+      'benchmark_result': benchmark_result,
+      'benchmark_info': benchmark_info,
+      'setup_info': {},
+      'ml_framework_info': ml_framework_info,
+      'system_info': system_info,
+  }
   if process_info:
     execution_summary['process_info'] = process_info
 

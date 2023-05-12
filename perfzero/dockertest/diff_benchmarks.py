@@ -33,7 +33,7 @@ def _find_perfzero_logs(docker_output_dir):
       if summary_file.endswith('perfzero_summary.json'):
         full_summary_file = os.path.join(root, summary_file)
         summary_files.append(full_summary_file)
-        sys.stdout.write('Found json {}\n'.format(full_summary_file))
+        sys.stdout.write(f'Found json {full_summary_file}\n')
   return summary_files
 
 
@@ -56,9 +56,10 @@ def _summarize_benchmarks(summary_files):
     method = summary_json['benchmark_result']['name']
     trial = summary_json['benchmark_result']['trial_id']
     metrics_list = summary_json['benchmark_result']['metrics']
-    metrics = {}
-    for metric_info in metrics_list:
-      metrics[metric_info['name']] = metric_info['value']
+    metrics = {
+        metric_info['name']: metric_info['value']
+        for metric_info in metrics_list
+    }
     metrics['wall_time'] = summary_json['benchmark_result']['wall_time']
     label = summary_json['benchmark_info']['execution_label']
 
@@ -84,12 +85,12 @@ def _print_diff_report(performance_by_method):
 
   print('Diff report:')
   for method in sorted(method_to_metric_to_perf):
-    print('-- benchmark: {}'.format(method))
+    print(f'-- benchmark: {method}')
     for metric in sorted(method_to_metric_to_perf[method].keys()):
       value_list = []
       for label, value in sorted(
           method_to_metric_to_perf[method][metric], key=lambda x: x[0]):
-        print('         {}: {}: {}'.format(metric, label, value))
+        print(f'         {metric}: {label}: {value}')
         value_list.append(value)
 
       if len(value_list) == 2:
@@ -104,8 +105,7 @@ def _print_diff_report(performance_by_method):
 
 def main():
   if len(sys.argv) != 2:
-    raise RuntimeError('Usage: {} <base perfzero output dir>'.format(
-        sys.argv[0]))
+    raise RuntimeError(f'Usage: {sys.argv[0]} <base perfzero output dir>')
 
   perfzero_output_dir = sys.argv[1]
   summary_files = _find_perfzero_logs(perfzero_output_dir)

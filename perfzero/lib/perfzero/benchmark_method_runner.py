@@ -85,10 +85,7 @@ def _run_internal(benchmark_method, harness_info, site_package_info,
   logging.getLogger().addHandler(filehandler)
 
   try:
-    if config.tpu_parameters:
-      tpu = config.tpu_parameters.get('name')
-    else:
-      tpu = None
+    tpu = config.tpu_parameters.get('name') if config.tpu_parameters else None
     if config.perfzero_constructor_args:
       constructor_args = json.loads(config.perfzero_constructor_args)
     else:
@@ -104,10 +101,7 @@ def _run_internal(benchmark_method, harness_info, site_package_info,
     # path benchmark_result_file_path_prefix + benchmark_method
     benchmark_result_file_path_prefix = os.path.join(output_dir, 'proto_')
     os.environ['TEST_REPORT_FILE_PREFIX'] = benchmark_result_file_path_prefix
-    benchmark_result_file_path = '{}{}.{}'.format(
-        benchmark_result_file_path_prefix,
-        benchmark_class_name,
-        benchmark_method_name)
+    benchmark_result_file_path = f'{benchmark_result_file_path_prefix}{benchmark_class_name}.{benchmark_method_name}'
 
     # Start background threads for profiler and system info tracker
     tensorflow_profiler.start()
@@ -177,11 +171,9 @@ def _run_internal(benchmark_method, harness_info, site_package_info,
 
   if config.profiler_enabled_time_str:
     relative_output_dir = output_dir[output_dir.find('benchmark'):]
-    print('\nExecute the command below to start tensorboard server using '
-          'the collected profiler data:\ntensorboard --logdir={}\n\n'
-          'Open localhost:6006 in your browser to access the Tensorbord '
-          'GUI. Use ssh with port forwarding if tensorboard is running on '
-          'a remote machine.\n'.format(relative_output_dir))
+    print(
+        f'\nExecute the command below to start tensorboard server using the collected profiler data:\ntensorboard --logdir={relative_output_dir}\n\nOpen localhost:6006 in your browser to access the Tensorbord GUI. Use ssh with port forwarding if tensorboard is running on a remote machine.\n'
+    )
 
   queue.put((method_has_exception, method_execution_time,
              benchmark_result['succeeded'], output_dir))

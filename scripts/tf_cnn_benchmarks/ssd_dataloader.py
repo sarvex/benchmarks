@@ -116,9 +116,7 @@ def calc_iou_tensor(boxes1, boxes2):
   intersect = tf.multiply(tf.maximum((intersect_right - intersect_left), 0),
                           tf.maximum((intersect_bottom - intersect_top), 0))
   union = boxes1_area + tf.transpose(boxes2_area) - intersect
-  iou = intersect / union
-
-  return iou
+  return intersect / union
 
 
 def ssd_parse_example_proto(example_serialized):

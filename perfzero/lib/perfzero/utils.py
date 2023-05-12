@@ -41,7 +41,7 @@ def create_empty_file(parent_directory, file_basename):
     os.makedirs(parent_directory)
   full_file_name = os.path.join(parent_directory, file_basename)
   with open(full_file_name, 'w'):
-    print('Creating empty file: {}'.format(full_file_name))
+    print(f'Creating empty file: {full_file_name}')
 
 
 def checkout_git_repos(git_repos, use_cached_site_packages):
@@ -59,15 +59,13 @@ def checkout_git_repos(git_repos, use_cached_site_packages):
     logging.info('Checking out repository from %s to %s',
                  repo['url'], repo['local_path'])
     if not os.path.isdir(repo['local_path']):
-      run_commands(['git clone {} {}'.format(repo['url'], repo['local_path'])])
+      run_commands([f"git clone {repo['url']} {repo['local_path']}"])
     if 'branch' in repo:
-      run_commands(['git -C {} checkout {}'.format(
-          repo['local_path'], repo['branch'])])
+      run_commands([f"git -C {repo['local_path']} checkout {repo['branch']}"])
     if not use_cached_site_packages or 'git_hash' in repo:
-      run_commands(['git -C {} pull --rebase'.format(repo['local_path'])])
+      run_commands([f"git -C {repo['local_path']} pull --rebase"])
     if 'git_hash' in repo:
-      run_commands(['git -C {} reset --hard {}'.format(
-          repo['local_path'], repo['git_hash'])])
+      run_commands([f"git -C {repo['local_path']} reset --hard {repo['git_hash']}"])
     logging.info('Checked-out repository from %s to %s',
                  repo['url'], repo['local_path'])
     site_package_info[repo['dir_name']] = get_git_repo_info(repo['local_path'])
@@ -80,7 +78,7 @@ def get_git_repo_info(local_path):
   git_repo_info = {}
 
   # Get git url
-  cmd = 'git -C {} config --get remote.origin.url'.format(local_path)
+  cmd = f'git -C {local_path} config --get remote.origin.url'
   exit_code, result = run_command(cmd)
   lines = result.splitlines()
   if exit_code == 0 and lines:
@@ -91,7 +89,7 @@ def get_git_repo_info(local_path):
     return {}
 
   # Get git branch
-  cmd = 'git -C {} rev-parse --abbrev-ref HEAD'.format(local_path)
+  cmd = f'git -C {local_path} rev-parse --abbrev-ref HEAD'
   exit_code, result = run_command(cmd)
   lines = result.splitlines()
   if exit_code == 0 and lines:
@@ -102,7 +100,7 @@ def get_git_repo_info(local_path):
     return {}
 
   # Get git hash
-  cmd = 'git -C {} rev-parse HEAD'.format(local_path)
+  cmd = f'git -C {local_path} rev-parse HEAD'
   exit_code, result = run_command(cmd)
   lines = result.splitlines()
   if exit_code == 0 and lines:
@@ -144,8 +142,7 @@ def active_gcloud_service(gcloud_key_file_url, workspace_dir,
 
   if not download_only:
     os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = local_path
-    run_commands(['gcloud auth activate-service-account --key-file {}'.format(
-        local_path)])
+    run_commands([f'gcloud auth activate-service-account --key-file {local_path}'])
     logging.info('Activated gcloud service account credential')
 
 
@@ -177,9 +174,8 @@ def download_data(download_infos):
     # Download data to the local path
     if info['url'].startswith('http://') or info['url'].startswith('https://'):
       request = requests.get(info['url'], allow_redirects=True)
-      f = open(info['local_path'], 'wb')
-      f.write(request.content)
-      f.close()
+      with open(info['local_path'], 'wb') as f:
+        f.write(request.content)
     elif info['url'].startswith('gs://'):
       cmd = ['gsutil', '-m', 'cp', '-r', '-n', info['url'], local_path_parent]
       run_commands([cmd], shell=False)
@@ -187,20 +183,20 @@ def download_data(download_infos):
       cmd = ['cp', info['url'][7:], local_path_parent]
       run_commands([cmd], shell=False)
     else:
-      raise ValueError('Url {} with prefix {} is not supported.'.format(
-          info['url'], info['url'].split(':')[0]))
+      raise ValueError(
+          f"Url {info['url']} with prefix {info['url'].split(':')[0]} is not supported."
+      )
     # Move data to the expected local path
     if original_base_name != expected_base_name:
-      run_commands(['mv {} {}'.format(
-          os.path.join(local_path_parent, original_base_name),
-          os.path.join(local_path_parent, expected_base_name))])
+      run_commands([
+          f'mv {os.path.join(local_path_parent, original_base_name)} {os.path.join(local_path_parent, expected_base_name)}'
+      ])
     logging.info('Downloaded data from %s to %s',
                  info['url'], info['local_path'])
     # Decompress file if file name ends with .gz unless caller sets 'decompress'
     # to False in info.
     if info['url'].endswith('.gz') and info.get('decompress', True):
-      run_commands(['tar xvf {} -C {}'.format(
-          info['local_path'], local_path_parent)])
+      run_commands([f"tar xvf {info['local_path']} -C {local_path_parent}"])
       logging.info('Decompressed file %s', info['local_path'])
 
 
@@ -244,7 +240,7 @@ def parse_data_downloads_str(root_data_dir, data_downloads_str):
 def maybe_upload_to_gcs(local_dir, output_gcs_url):
   if not output_gcs_url:
     return
-  run_commands(['gsutil -m cp -r {} {}'.format(local_dir, output_gcs_url)])
+  run_commands([f'gsutil -m cp -r {local_dir} {output_gcs_url}'])
   logging.info('Uploaded data from local directory %s to gcs %s',
                local_dir, output_gcs_url)
 
@@ -286,8 +282,7 @@ def run_commands(cmds, shell=True):
   for cmd in cmds:
     exit_code, stdout = run_command(cmd, shell=shell)
     if exit_code:
-      raise Exception('"{}" failed with code:{} and stdout:\n{}'.format(
-          cmd, exit_code, stdout))
+      raise Exception(f'"{cmd}" failed with code:{exit_code} and stdout:\n{stdout}')
 
 
 def get_cpu_name():
@@ -308,9 +303,8 @@ def get_cpu_socket_count():
   lines = result.splitlines()
   if exit_code == 0 and lines:
     return int(lines[0])
-  else:
-    logging.error('Error getting cpuinfo scocket count: %s', result)
-    return -1
+  logging.error('Error getting cpuinfo scocket count: %s', result)
+  return -1
 
 
 def _get_amd_gpu_info():
@@ -380,8 +374,7 @@ def _get_nvidia_gpu_info():
   if 'Quadro' in gpu_info_line and len(lines) >= 3:
     gpu_info_line = lines[2]
 
-  gpu_info = {}
-  gpu_info['gpu_driver_version'] = gpu_info_line.split(',')[0].strip()
+  gpu_info = {'gpu_driver_version': gpu_info_line.split(',')[0].strip()}
   gpu_info['gpu_model'] = gpu_info_line.split(',')[1].strip()
   gpu_info['gpu_count'] = len(lines) - 1
 
@@ -427,15 +420,15 @@ def setup_tpu(parameters):
     _install_tpu_tool()
 
     args = [
-        '--name={}'.format(parameters.get('name')),
-        '--project={}'.format(parameters.get('project')),
-        '--zone={}'.format(parameters.get('zone')),
-        '--tpu-size={}'.format(parameters.get('size')),
-        '--tf-version={}'.format(parameters.get('version')),
+        f"--name={parameters.get('name')}",
+        f"--project={parameters.get('project')}",
+        f"--zone={parameters.get('zone')}",
+        f"--tpu-size={parameters.get('size')}",
+        f"--tf-version={parameters.get('version')}",
         '--tpu-only',
         '-noconf',
     ]
-    command = './ctpu up {}'.format(' '.join(args))
+    command = f"./ctpu up {' '.join(args)}"
     logging.info('Setting up TPU: %s', command)
     exit_code, output = run_command(command)
     if exit_code != 0:
@@ -459,13 +452,13 @@ def cleanup_tpu(parameters):
   _install_tpu_tool()
 
   args = [
-      '--name={}'.format(parameters.get('name')),
-      '--project={}'.format(parameters.get('project')),
-      '--zone={}'.format(parameters.get('zone')),
+      f"--name={parameters.get('name')}",
+      f"--project={parameters.get('project')}",
+      f"--zone={parameters.get('zone')}",
       '--tpu-only',
       '-noconf',
   ]
-  command = './ctpu delete {}'.format(' '.join(args))
+  command = f"./ctpu delete {' '.join(args)}"
   logging.info('Cleaning up TPU: %s', command)
   exit_code, output = run_command(command)
   if exit_code != 0:
@@ -496,8 +489,8 @@ def read_benchmark_result(benchmark_result_file_path):
 def print_thread_stacktrace():
   print('Here is the stacktrace for all threads:')
   thread_names = {t.ident: t.name for t in threading.enumerate()}
-  for thread_id, frame in sys._current_frames().items():  # pylint: disable=protected-access
-    print('Thread {}'.format(thread_names.get(thread_id, thread_id)))
+  for thread_id, frame in sys._current_frames().items():# pylint: disable=protected-access
+    print(f'Thread {thread_names.get(thread_id, thread_id)}')
     traceback.print_stack(frame)
 
 
@@ -508,18 +501,11 @@ def instantiate_benchmark_class(
   module_import_path, class_name = benchmark_class.rsplit('.', 1)
   module = importlib.import_module(module_import_path)
   class_ = getattr(module, class_name)
-  if benchmark_class_type == 'tf_benchmark':
-    # for benchmarks inheriting from tf.test.Benchmark, instantiate them directly.
-    instance = class_(**constructor_args)
-  else:
-    # Default instantiation for perfzero_benchmark classes.
-    instance = class_(
-        output_dir=output_dir,
-        root_data_dir=root_data_dir,
-        tpu=tpu,
-        **constructor_args)
-
-  return instance
+  return (class_(**constructor_args) if benchmark_class_type == 'tf_benchmark'
+          else class_(output_dir=output_dir,
+                      root_data_dir=root_data_dir,
+                      tpu=tpu,
+                      **constructor_args))
 
 
 def copy_and_rename_dirs(dir_spec_string, dst_base_dir):

@@ -27,19 +27,19 @@ class TestPerfZeroConfig(unittest.TestCase):
     config.git_repos_str = 'https://github.com/tensorflow/benchmarks.git;branch_1;hash_1,https://github.com/tensorflow/models.git;branch_2'
     git_repos = config.get_git_repos('/site_package_dir')
 
-    git_repo_1 = {}
-    git_repo_1['url'] = 'https://github.com/tensorflow/benchmarks.git'
-    git_repo_1['dir_name'] = 'benchmarks'
-    git_repo_1['local_path'] = '/site_package_dir/benchmarks'
-    git_repo_1['branch'] = 'branch_1'
-    git_repo_1['git_hash'] = 'hash_1'
-
-    git_repo_2 = {}
-    git_repo_2['url'] = 'https://github.com/tensorflow/models.git'
-    git_repo_2['dir_name'] = 'models'
-    git_repo_2['local_path'] = '/site_package_dir/models'
-    git_repo_2['branch'] = 'branch_2'
-
+    git_repo_1 = {
+        'url': 'https://github.com/tensorflow/benchmarks.git',
+        'dir_name': 'benchmarks',
+        'local_path': '/site_package_dir/benchmarks',
+        'branch': 'branch_1',
+        'git_hash': 'hash_1',
+    }
+    git_repo_2 = {
+        'url': 'https://github.com/tensorflow/models.git',
+        'dir_name': 'models',
+        'local_path': '/site_package_dir/models',
+        'branch': 'branch_2',
+    }
     self.assertEqual(2, len(git_repos))
     self.assertEqual(git_repo_1, git_repos[0])
     self.assertEqual(git_repo_2, git_repos[1])

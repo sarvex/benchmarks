@@ -108,24 +108,39 @@ def _convert_to_example(filename, image_buffer, label, synset, human, bbox,
   channels = 3
   image_format = b'JPEG'
 
-  example = tf.train.Example(features=tf.train.Features(feature={
-      'image/height': _int64_feature(height),
-      'image/width': _int64_feature(width),
-      'image/colorspace': _bytes_feature(colorspace),
-      'image/channels': _int64_feature(channels),
-      'image/class/label': _int64_feature(label),
-      'image/class/synset': _bytes_feature(six.ensure_binary(synset)),
-      'image/class/text': _bytes_feature(six.ensure_binary(human)),
-      'image/object/bbox/xmin': _float_feature(xmin),
-      'image/object/bbox/xmax': _float_feature(xmax),
-      'image/object/bbox/ymin': _float_feature(ymin),
-      'image/object/bbox/ymax': _float_feature(ymax),
-      'image/object/bbox/label': _int64_feature([label] * len(xmin)),
-      'image/format': _bytes_feature(image_format),
-      'image/filename': _bytes_feature(os.path.basename(six.ensure_binary(
-          filename))),
-      'image/encoded': _bytes_feature(image_buffer)}))
-  return example
+  return tf.train.Example(features=tf.train.Features(
+      feature={
+          'image/height':
+          _int64_feature(height),
+          'image/width':
+          _int64_feature(width),
+          'image/colorspace':
+          _bytes_feature(colorspace),
+          'image/channels':
+          _int64_feature(channels),
+          'image/class/label':
+          _int64_feature(label),
+          'image/class/synset':
+          _bytes_feature(six.ensure_binary(synset)),
+          'image/class/text':
+          _bytes_feature(six.ensure_binary(human)),
+          'image/object/bbox/xmin':
+          _float_feature(xmin),
+          'image/object/bbox/xmax':
+          _float_feature(xmax),
+          'image/object/bbox/ymin':
+          _float_feature(ymin),
+          'image/object/bbox/ymax':
+          _float_feature(ymax),
+          'image/object/bbox/label':
+          _int64_feature([label] * len(xmin)),
+          'image/format':
+          _bytes_feature(image_format),
+          'image/filename':
+          _bytes_feature(os.path.basename(six.ensure_binary(filename))),
+          'image/encoded':
+          _bytes_feature(image_buffer),
+      }))
 
 
 class ImageCoder(object):
@@ -141,9 +156,7 @@ class ImageCoder(object):
         self._image, format='rgb', quality=100)
 
   def encode_jpeg(self, image):
-    jpeg_image = self._sess.run(self._encode_jpeg,
-                                feed_dict={self._image: image})
-    return jpeg_image
+    return self._sess.run(self._encode_jpeg, feed_dict={self._image: image})
 
 
 def _process_image(coder, name):
@@ -192,7 +205,7 @@ def _process_dataset(output_directory, num_classes, coder, name, num_images,
         index = shard * files_per_shard + i
         image_buffer, height, width = _process_image(coder, name)
 
-        filename = '{}_{}_{}'.format(name, shard, i)
+        filename = f'{name}_{shard}_{i}'
         label = index % num_classes
         synset = str(index)
         human = name

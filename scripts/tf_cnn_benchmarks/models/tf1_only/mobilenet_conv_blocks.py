@@ -46,9 +46,10 @@ def _fixed_padding(inputs, kernel_size, rate=1):
   pad_total = [kernel_size_effective[0] - 1, kernel_size_effective[1] - 1]
   pad_beg = [pad_total[0] // 2, pad_total[1] // 2]
   pad_end = [pad_total[0] - pad_beg[0], pad_total[1] - pad_beg[1]]
-  padded_inputs = tf.pad(inputs, [[0, 0], [pad_beg[0], pad_end[0]],
-                                  [pad_beg[1], pad_end[1]], [0, 0]])
-  return padded_inputs
+  return tf.pad(
+      inputs,
+      [[0, 0], [pad_beg[0], pad_end[0]], [pad_beg[1], pad_end[1]], [0, 0]],
+  )
 
 
 def _make_divisible(v, divisor, min_value=None):
@@ -128,7 +129,7 @@ def split_separable_conv2d(input_tensor,
   """
 
   with _v1_compatible_scope_naming(scope) as scope:
-    dw_scope = scope + 'depthwise'
+    dw_scope = f'{scope}depthwise'
     endpoints = endpoints if endpoints is not None else {}
     kernel_size = [3, 3]
     padding = 'SAME'
@@ -148,7 +149,7 @@ def split_separable_conv2d(input_tensor,
 
     endpoints[dw_scope] = net
 
-    pw_scope = scope + 'pointwise'
+    pw_scope = f'{scope}pointwise'
     net = slim.conv2d(
         net,
         num_outputs, [1, 1],
@@ -350,11 +351,11 @@ def split_conv(input_tensor,
   input_splits = _split_divisible(b, num_ways, divisible_by=divisible_by)
   output_splits = _split_divisible(
       num_outputs, num_ways, divisible_by=divisible_by)
-  inputs = tf.split(input_tensor, input_splits, axis=3, name='split_' + scope)
+  inputs = tf.split(input_tensor, input_splits, axis=3, name=f'split_{scope}')
   base = scope
   for i, (input_tensor, out_size) in enumerate(zip(inputs, output_splits)):
     scope = base + '_part_%d' % (i,)
     n = slim.conv2d(input_tensor, out_size, [1, 1], scope=scope, **kwargs)
-    n = tf.identity(n, scope + '_output')
+    n = tf.identity(n, f'{scope}_output')
     outs.append(n)
-  return tf.concat(outs, 3, name=scope + '_concat')
+  return tf.concat(outs, 3, name=f'{scope}_concat')

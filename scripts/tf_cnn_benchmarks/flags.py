@@ -86,7 +86,7 @@ def define_flags(specs=None):
   }
   for name, param_spec in six.iteritems(specs):
     if param_spec.flag_type not in define_flag:
-      raise ValueError('Unknown flag_type %s' % param_spec.flag_type)
+      raise ValueError(f'Unknown flag_type {param_spec.flag_type}')
     else:
       define_flag[param_spec.flag_type](name, param_spec.default_value,
                                         help=param_spec.description,

@@ -704,13 +704,15 @@ class GlobalStepWatcher(threading.Thread):
         # Use tf.logging.info instead of log_fn, since print (which is log_fn)
         # is not thread safe and may interleave the outputs from two parallel
         # calls to print, which can break tests.
-        tf.logging.info('Starting real work at step %s at time %s' %
-                        (global_step_val, time.ctime()))
+        tf.logging.info(
+            f'Starting real work at step {global_step_val} at time {time.ctime()}'
+        )
         self.start_time = time.perf_counter()
         self.start_step = global_step_val
       if self.finish_time == 0 and global_step_val >= self.end_at_global_step:
-        tf.logging.info('Finishing real work at step %s at time %s' %
-                        (global_step_val, time.ctime()))
+        tf.logging.info(
+            f'Finishing real work at step {global_step_val} at time {time.ctime()}'
+        )
         self.finish_time = time.perf_counter()
         self.finish_step = global_step_val
 
@@ -872,10 +874,7 @@ def benchmark_one_step(sess,
     (results, summary_str) = sess.run(
         [fetches, summary_op], options=run_options, run_metadata=run_metadata)
 
-  if not params.forward_only:
-    lossval = results['average_loss']
-  else:
-    lossval = 0.
+  lossval = results['average_loss'] if not params.forward_only else 0.
   if image_producer is not None:
     image_producer.notify_image_consumption()
   train_time = time.perf_counter() - start_time
@@ -905,7 +904,7 @@ def benchmark_one_step(sess,
     if should_profile:
       profiler.add_step(step, run_metadata)
     if trace_filename and step == -2 and should_output_files:
-      log_fn('Dumping trace to %s' % trace_filename)
+      log_fn(f'Dumping trace to {trace_filename}')
       trace_dir = os.path.dirname(trace_filename)
       if not gfile.Exists(trace_dir):
         gfile.MakeDirs(trace_dir)
@@ -919,16 +918,16 @@ def benchmark_one_step(sess,
       path, filename = os.path.split(partitioned_graph_file_prefix)
       if '.' in filename:
         base_filename, ext = filename.rsplit('.', 1)
-        ext = '.' + ext
+        ext = f'.{ext}'
       else:
         base_filename, ext = filename, ''
       as_text = filename.endswith('txt')
       for graph_def in run_metadata.partition_graphs:
         device = graph_def.node[0].device.replace('/', '_').replace(':', '_')
-        graph_filename = '%s%s%s' % (base_filename, device, ext)
-        log_fn('Writing partitioned GraphDef as %s to %s' % (
-            'text' if as_text else 'binary',
-            os.path.join(path, graph_filename)))
+        graph_filename = f'{base_filename}{device}{ext}'
+        log_fn(
+            f"Writing partitioned GraphDef as {'text' if as_text else 'binary'} to {os.path.join(path, graph_filename)}"
+        )
         tf.train.write_graph(graph_def, path, graph_filename, as_text)
   return (summary_str, lossval)
 
@@ -970,12 +969,9 @@ def load_checkpoint(saver, sess, ckpt_dir):
   """
   model_checkpoint_path = _get_checkpoint_to_load(ckpt_dir)
   global_step = model_checkpoint_path.split('/')[-1].split('-')[-1]
-  if not global_step.isdigit():
-    global_step = 0
-  else:
-    global_step = int(global_step)
+  global_step = 0 if not global_step.isdigit() else int(global_step)
   saver.restore(sess, model_checkpoint_path)
-  log_fn('Successfully loaded model from %s.' % model_checkpoint_path)
+  log_fn(f'Successfully loaded model from {model_checkpoint_path}.')
   return global_step
 
 
@@ -1000,8 +996,8 @@ def _get_checkpoint_to_load(ckpt_dir):
     if ckpt and ckpt.model_checkpoint_path:
       model_checkpoint_path = ckpt.model_checkpoint_path
     else:
-      raise CheckpointNotFoundException('No checkpoint file found in dir:{}'.
-                                        format(ckpt_dir))
+      raise CheckpointNotFoundException(
+          f'No checkpoint file found in dir:{ckpt_dir}')
   return model_checkpoint_path
 
 
@@ -1041,8 +1037,9 @@ def validate_params(params):
                          (name, value, param_spec.kwargs['upper_bound']))
     elif (value is not None and param_spec.flag_type == 'enum' and
           value not in param_spec.kwargs['enum_values']):
-      raise ValueError('Param %s of value %s is not in %s'%
-                       (name, value, param_spec.kwargs['enum_values']))
+      raise ValueError(
+          f"Param {name} of value {value} is not in {param_spec.kwargs['enum_values']}"
+      )
 
 
 def make_params(**kwargs):
@@ -1082,7 +1079,7 @@ def remove_param_fields(params, fields_to_remove):
   """Remove fields from a Params namedtuple."""
   params_dict = params._asdict()
   for field in fields_to_remove:
-    assert field in params_dict, 'Invalid Params field: ' + field
+    assert field in params_dict, f'Invalid Params field: {field}'
   params_dict = {k: v for k, v in params_dict.items()
                  if k not in fields_to_remove}
   new_params_type = namedtuple('Params', params_dict.keys())
@@ -1146,12 +1143,12 @@ def get_piecewise_learning_rate(piecewise_learning_rate_schedule,
       try:
         values.append(float(piece))
       except ValueError:
-        raise ValueError('Invalid learning rate: ' + piece)
+        raise ValueError(f'Invalid learning rate: {piece}')
     else:
       try:
         boundaries.append(int(int(piece) * num_batches_per_epoch) - 1)
       except ValueError:
-        raise ValueError('Invalid epoch: ' + piece)
+        raise ValueError(f'Invalid epoch: {piece}')
   return tf.train.piecewise_constant(global_step, boundaries, values,
                                      name='piecewise_learning_rate')
 
@@ -1247,8 +1244,7 @@ def get_optimizer(params, learning_rate):
     opt = tf.train.AdamOptimizer(learning_rate, params.adam_beta1,
                                  params.adam_beta2, params.adam_epsilon)
   else:
-    raise ValueError('Optimizer "{}" was not recognized'.
-                     format(params.optimizer))
+    raise ValueError(f'Optimizer "{params.optimizer}" was not recognized')
   return opt
 
 
@@ -1261,7 +1257,7 @@ def generate_tfprof_profile(profiler, tfprof_file):
     tfprof_file: The filename to write the ProfileProto to.
   """
   profile_proto = profiler.serialize_to_string()
-  log_fn('Dumping ProfileProto to %s' % tfprof_file)
+  log_fn(f'Dumping ProfileProto to {tfprof_file}')
   with gfile.Open(tfprof_file, 'wb') as f:
     f.write(profile_proto)
 

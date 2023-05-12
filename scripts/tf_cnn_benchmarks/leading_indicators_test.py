@@ -77,8 +77,7 @@ class BenchmarkBase(tf.test.Benchmark):
     bench = benchmark_cnn.BenchmarkCNN(params)
     bench.print_info()
     stats = bench.run()
-    extras = {}
-    extras['examples_per_sec'] = stats.get('images_per_sec')
+    extras = {'examples_per_sec': stats.get('images_per_sec')}
     if 'last_average_loss' in stats:
       extras['last_average_loss'] = stats['last_average_loss']
     if 'top_1_accuracy' in stats:
@@ -901,11 +900,7 @@ class SsdBenchmarks(BenchmarkBase):
       return None
 
     lib = ctypes.cdll.LoadLibrary(None)
-    if hasattr(lib, 'cudnnGetErrorString'):
-      version = lib.cudnnGetVersion()
-      return version
-
-    return None
+    return lib.cudnnGetVersion() if hasattr(lib, 'cudnnGetErrorString') else None
 
   def _shared_params(self):
     cudnn_version = self._cudnn_version()

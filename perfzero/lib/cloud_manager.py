@@ -44,7 +44,7 @@ def run_command(cmd, is_from_user=False):
     Exception: raised when the command execution has non-zero exit code
   """
   _log = logging.info if is_from_user else logging.debug
-  _log('Executing command: {}'.format(cmd))
+  _log(f'Executing command: {cmd}')
   p = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                        stderr=subprocess.STDOUT, shell=True)
 
@@ -56,10 +56,11 @@ def run_command(cmd, is_from_user=False):
     line = p.stdout.readline().decode('utf-8')
     stdout += line
     _log(line)
-  if exit_code and is_from_user:
-    sys.exit(exit_code)
-  elif exit_code:
-    raise Exception('Command:\n{}\nfailed with output:\n{}'.format(cmd, stdout))
+  if exit_code:
+    if is_from_user:
+      sys.exit(exit_code)
+    else:
+      raise Exception(f'Command:\n{cmd}\nfailed with output:\n{stdout}')
 
   return stdout
 
@@ -86,7 +87,7 @@ def get_machine_type(machine_type, accelerator_count):
   if machine_type:
     return machine_type
   cpu_count = max(accelerator_count, 1) * 8
-  return 'n1-standard-{}'.format(cpu_count)
+  return f'n1-standard-{cpu_count}'
 
 
 def _ssh_prefix(project, zone, internal_ip, key_file):
@@ -95,8 +96,8 @@ def _ssh_prefix(project, zone, internal_ip, key_file):
   else:
     ssh_prefix = 'gcloud compute ssh'
   if key_file:
-    ssh_prefix = '{} --ssh-key-file={}'.format(ssh_prefix, key_file)
-  return '{} --project={} --zone={}'.format(ssh_prefix, project, zone)
+    ssh_prefix = f'{ssh_prefix} --ssh-key-file={key_file}'
+  return f'{ssh_prefix} --project={project} --zone={zone}'
 
 
 def create(username, project, zone, machine_type, accelerator_count,
@@ -132,15 +133,13 @@ def create(username, project, zone, machine_type, accelerator_count,
 '''.format(instance_name, image, project, zone, machine_type)
 
   if boot_ssd_size:
-    cmd += '--boot-disk-size={}GB --boot-disk-type=pd-ssd '.format(
-        boot_ssd_size)
+    cmd += f'--boot-disk-size={boot_ssd_size}GB --boot-disk-type=pd-ssd '
 
   if accelerator_count > 0:
-    cmd += '--accelerator=count={},type={} '.format(
-        accelerator_count, accelerator_type)
+    cmd += f'--accelerator=count={accelerator_count},type={accelerator_type} '
 
   if cpu_min_platform:
-    cmd += '--min-cpu-platform="{}" '.format(cpu_min_platform)
+    cmd += f'--min-cpu-platform="{cpu_min_platform}" '
 
   for _ in range(nvme_count):
     cmd += '--local-ssd=interface=NVME '
@@ -151,12 +150,9 @@ def create(username, project, zone, machine_type, accelerator_count,
 
   ssh_prefix = _ssh_prefix(project, zone, ssh_internal_ip, ssh_key_file)
   # Wait until we can ssh to the newly created computing instance
-  cmd = '{} --strict-host-key-checking=no --command="exit" {}'.format(
-      ssh_prefix, instance_name)
-  ssh_remaining_retries = 12
+  cmd = f'{ssh_prefix} --strict-host-key-checking=no --command="exit" {instance_name}'
   ssh_error = None
-  while ssh_remaining_retries > 0:
-    ssh_remaining_retries -= 1
+  for ssh_remaining_retries in range(11, -1, -1):
     try:
       run_command(cmd, is_from_user=False)
       ssh_error = None
@@ -167,28 +163,27 @@ def create(username, project, zone, machine_type, accelerator_count,
                      'Try again after 5 seconds')
         time.sleep(5)
       else:
-        logging.error('Cannot ssh to the computing instance after '
-                      '60 seconds due to error:\n%s', str(ssh_error))
-
+        logging.ssh_error(
+            'Cannot ssh to the computing instance after '
+            '60 seconds due to error:\n%s',
+            str(ssh_error),
+        )
   if ssh_error:
     logging.info('Run the commands below manually after ssh into the computing '
                  'instance:\n'
                  'git clone https://github.com/tensorflow/benchmarks.git\n'
                  'sudo usermod -a -G docker $USER\n')
   else:
-    cmd = '{} --command="git clone {}" {}'.format(
-        ssh_prefix, 'https://github.com/tensorflow/benchmarks.git',
-        instance_name)
+    cmd = f'{ssh_prefix} --command="git clone https://github.com/tensorflow/benchmarks.git" {instance_name}'
     run_command(cmd, is_from_user=True)
     logging.info('Successfully checked-out PerfZero code on the '
                  'computing instance\n')
 
-    cmd = '{} --command="sudo usermod -a -G docker $USER" {}'.format(
-        ssh_prefix, instance_name)
+    cmd = f'{ssh_prefix} --command="sudo usermod -a -G docker $USER" {instance_name}'
     run_command(cmd, is_from_user=True)
     logging.info('Successfully added user to the docker group\n')
 
-  cmd = '{} {} -- -L 6006:127.0.0.1:6006'.format(ssh_prefix, instance_name)
+  cmd = f'{ssh_prefix} {instance_name} -- -L 6006:127.0.0.1:6006'
   logging.info('Run the command below to ssh to the instance together with '
                'port forwarding for tensorboard:\n%s\n', cmd)
 
@@ -207,8 +202,7 @@ def status(username, project, zone, ssh_internal_ip, ssh_key_file):
   logging.debug('Querying status of gcloud computing instance %s of '
                 'project %s in zone %s', instance_name, project, zone)
 
-  cmd = 'gcloud compute instances list --filter="name={} AND zone:{}" --project {}'.format(  # pylint: disable=line-too-long
-      instance_name, zone, project)
+  cmd = f'gcloud compute instances list --filter="name={instance_name} AND zone:{zone}" --project {project}'
   stdout = run_command(cmd, is_from_user=True)
 
   num_instances = len(stdout.splitlines()) - 1
@@ -216,9 +210,7 @@ def status(username, project, zone, ssh_internal_ip, ssh_key_file):
                num_instances, instance_name)
 
   if num_instances == 1:
-    cmd = '{} {} -- -L 6006:127.0.0.1:6006'.format(
-        _ssh_prefix(project, zone, ssh_internal_ip, ssh_key_file),
-        instance_name)
+    cmd = f'{_ssh_prefix(project, zone, ssh_internal_ip, ssh_key_file)} {instance_name} -- -L 6006:127.0.0.1:6006'
     logging.info('Run the command below to ssh to the instance together with '
                  'port forwarding for tensorboard:\n%s\n', cmd)
 
@@ -226,8 +218,7 @@ def status(username, project, zone, ssh_internal_ip, ssh_key_file):
 def list_all(project):
   logging.debug('Finding all gcloud computing instance of project %s created '
                 'for PerfZero test', project)
-  cmd = 'gcloud compute instances list --filter="name ~ {}" --project={}'.format(  # pylint: disable=line-too-long
-      INSTANCE_NAME_PREFIX, project)
+  cmd = f'gcloud compute instances list --filter="name ~ {INSTANCE_NAME_PREFIX}" --project={project}'
   stdout = run_command(cmd, is_from_user=True)
   num_instances = len(stdout.splitlines()) - 1
   logging.info('\nFound %s gcloud computing instance of project %s created '
@@ -239,8 +230,7 @@ def start(username, project, zone):
   logging.debug('Starting gcloud computing instance %s of project %s '
                 'in zone %s', instance_name, project, zone)
 
-  cmd = 'gcloud compute instances start {} --project={} --zone={}'.format(
-      instance_name, project, zone)
+  cmd = f'gcloud compute instances start {instance_name} --project={project} --zone={zone}'
   run_command(cmd, is_from_user=True)
   logging.debug('\nSuccessfully started gcloud computing instance %s of '
                 'project %s in zone %s', instance_name, project, zone)
@@ -251,8 +241,7 @@ def stop(username, project, zone):
   logging.debug('Stopping gcloud computing instance %s of project %s in '
                 'zone %s', instance_name, project, zone)
 
-  cmd = 'gcloud compute instances stop {} --project={} --zone={}'.format(
-      instance_name, project, zone)
+  cmd = f'gcloud compute instances stop {instance_name} --project={project} --zone={zone}'
   run_command(cmd, is_from_user=True)
   logging.debug('\nSuccessfully stopped gcloud computing instance %s of '
                 'project %s in zone %s', instance_name, project, zone)
@@ -263,8 +252,7 @@ def delete(username, project, zone):
   logging.debug('Deleting gcloud computing instance %s of project %s in '
                 'zone %s', instance_name, project, zone)
 
-  cmd = 'echo Y | gcloud compute instances delete {} --project={} --zone={}'.format(  # pylint: disable=line-too-long
-      instance_name, project, zone)
+  cmd = f'echo Y | gcloud compute instances delete {instance_name} --project={project} --zone={zone}'
   run_command(cmd, is_from_user=True)
   logging.debug('\nSuccessfully deleted gcloud computing instance %s of '
                 'project %s in zone %s', instance_name, project, zone)
@@ -283,8 +271,9 @@ def parse_arguments(argv, command):  # pylint: disable=redefined-outer-name
 
   # pylint: disable=redefined-outer-name
   parser = argparse.ArgumentParser(
-      usage='cloud_manager.py {} [<args>]'.format(command),
-      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+      usage=f'cloud_manager.py {command} [<args>]',
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+  )
   parser.add_argument(
       '--debug',
       action='store_true',
@@ -404,7 +393,7 @@ The supported commands are:
   flags = parser.parse_args(sys.argv[1:2])
   command = flags.command
   if not hasattr(sys.modules[__name__], command):
-    print('Error: The command <{}> is not recognized\n'.format(command))
+    print(f'Error: The command <{command}> is not recognized\n')
     parser.print_help()
     sys.exit(1)
 

@@ -80,11 +80,15 @@ def parse_example_proto(example_serialized):
   }
   sparse_float32 = tf.VarLenFeature(dtype=tf.float32)
   # Sparse features in Example proto.
-  feature_map.update(
-      {k: sparse_float32 for k in ['image/object/bbox/xmin',
-                                   'image/object/bbox/ymin',
-                                   'image/object/bbox/xmax',
-                                   'image/object/bbox/ymax']})
+  feature_map |= {
+      k: sparse_float32
+      for k in [
+          'image/object/bbox/xmin',
+          'image/object/bbox/ymin',
+          'image/object/bbox/xmax',
+          'image/object/bbox/ymax',
+      ]
+  }
 
   features = tf.parse_single_example(example_serialized, feature_map)
   label = tf.cast(features['image/class/label'], dtype=tf.int32)
@@ -506,10 +510,7 @@ class InputPreprocessor(object):
     assert self.supports_datasets()
     assert num_splits == len(gpu_devices)
     with tf.name_scope('batch_processing'):
-      if doing_eval:
-        subset = 'validation'
-      else:
-        subset = 'train'
+      subset = 'validation' if doing_eval else 'train'
       batch_size_per_split = batch_size // num_splits
       ds = self.create_dataset(
           batch_size,
@@ -665,8 +666,7 @@ class BaseImagePreprocessor(InputPreprocessor):
     glob_pattern = dataset.tf_record_pattern(subset)
     file_names = gfile.Glob(glob_pattern)
     if not file_names:
-      raise ValueError('Found no files in --data_dir matching: {}'
-                       .format(glob_pattern))
+      raise ValueError(f'Found no files in --data_dir matching: {glob_pattern}')
     ds = tf.data.TFRecordDataset.list_files(file_names, shuffle=train)
     ds = ds.apply(
         tf.data.experimental.parallel_interleave(
@@ -886,8 +886,8 @@ class Cifar10ImagePreprocessor(BaseImagePreprocessor):
           capacity=min_queue_examples + 3 * self.batch_size,
           min_after_dequeue=min_queue_examples)
 
-      images = [[] for i in range(self.num_splits)]
-      labels = [[] for i in range(self.num_splits)]
+      images = [[] for _ in range(self.num_splits)]
+      labels = [[] for _ in range(self.num_splits)]
 
       # Create a list of size batch_size, each containing one image of the
       # batch. Without the unstack call, raw_images[i] would still access the
@@ -1223,8 +1223,7 @@ class LibrispeechPreprocessor(InputPreprocessor):
     glob_pattern = dataset.tf_record_pattern(subset)
     file_names = gfile.Glob(glob_pattern)
     if not file_names:
-      raise ValueError('Found no files in --data_dir matching: {}'
-                       .format(glob_pattern))
+      raise ValueError(f'Found no files in --data_dir matching: {glob_pattern}')
     ds = tf.data.TFRecordDataset.list_files(file_names, shuffle=train)
     ds = ds.apply(
         tf.data.experimental.parallel_interleave(
@@ -1249,11 +1248,11 @@ class LibrispeechPreprocessor(InputPreprocessor):
                 num_parallel_calls=batch_size_per_split*num_splits)
     ds = ds.padded_batch(
         batch_size=batch_size_per_split,
-        padded_shapes=tuple([
+        padded_shapes=tuple(
             tf.TensorShape(output_shape[1:])
-            for output_shape in self.output_shapes
-        ]),
-        drop_remainder=True)
+            for output_shape in self.output_shapes),
+        drop_remainder=True,
+    )
     ds = ds.prefetch(buffer_size=num_splits)
     if num_threads:
       options = tf.data.Options()

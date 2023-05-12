@@ -55,7 +55,7 @@ def _convert_params_to_flags_list(params):
     A list of flags.
   """
   return [
-      '--%s=%s' % (k, str(v)) for k, v in six.iteritems(params._asdict())
+      f'--{k}={str(v)}' for k, v in six.iteritems(params._asdict())
       if v != flags.param_specs[k].default_value
   ]
 
@@ -89,12 +89,12 @@ def _create_task_process(job_name, task_index, args, env, output_dir):
     fields of this tuple must be closed by the caller once the process ends.
   """
   args = args[:]
-  args += ['--task_index=%s' % task_index, '--job_name=%s' % job_name]
+  args += [f'--task_index={task_index}', f'--job_name={job_name}']
   name_prefix = job_name or 'local'
-  process_name = '%s_%s' % (name_prefix, task_index)
-  tf.logging.info('Spawning %s process: %s' % (process_name, ' '.join(args)))
-  stdout_filename = os.path.join(output_dir, '%s_stdout.txt' % process_name)
-  stderr_filename = os.path.join(output_dir, '%s_stderr.txt' % process_name)
+  process_name = f'{name_prefix}_{task_index}'
+  tf.logging.info(f"Spawning {process_name} process: {' '.join(args)}")
+  stdout_filename = os.path.join(output_dir, f'{process_name}_stdout.txt')
+  stderr_filename = os.path.join(output_dir, f'{process_name}_stderr.txt')
   stdout_file = open(stdout_filename, 'w+')
   stderr_file = open(stderr_filename, 'w+')
   popen = subprocess.Popen(
@@ -126,16 +126,16 @@ def _wait_for_processes(wait_processes, kill_processes):
       ret_code = wait_process.popen.poll()
       if ret_code is None:
         continue
-      tf.logging.info('{} finished'.format(wait_process.name))
+      tf.logging.info(f'{wait_process.name} finished')
       wait_process.stdout.seek(0)
       wait_process_stdouts[i] = wait_process.stdout.read()
-      tf.logging.info('stdout for {} (last {} chars): {}\n'.format(
-          wait_process.name, MAX_OUTPUT_CHARS,
-          wait_process_stdouts[i][-MAX_OUTPUT_CHARS:]))
+      tf.logging.info(
+          f'stdout for {wait_process.name} (last {MAX_OUTPUT_CHARS} chars): {wait_process_stdouts[i][-MAX_OUTPUT_CHARS:]}\n'
+      )
       wait_process.stderr.seek(0)
-      tf.logging.info('stderr for {} (last {} chars): {}\n'.format(
-          wait_process.name, MAX_OUTPUT_CHARS,
-          wait_process.stderr.read()[-MAX_OUTPUT_CHARS:]))
+      tf.logging.info(
+          f'stderr for {wait_process.name} (last {MAX_OUTPUT_CHARS} chars): {wait_process.stderr.read()[-MAX_OUTPUT_CHARS:]}\n'
+      )
       assert ret_code == 0, 'Process failed with return code %d' % ret_code
       finished_wait_processes.add(i)
     for kill_process in kill_processes:
@@ -144,18 +144,18 @@ def _wait_for_processes(wait_processes, kill_processes):
       assert ret_code is None, 'Process returned early with code %d' % ret_code
     time.sleep(0.25)
   tf.logging.info('All wait processes finished')
-  for i, kill_process in enumerate(kill_processes):
+  for kill_process in kill_processes:
     # Kill each kill process.
     kill_process.popen.kill()
     kill_process.popen.wait()
     kill_process.stdout.seek(0)
-    tf.logging.info('stdout for {} (last {} chars): {}\n'.format(
-        kill_process.name, MAX_OUTPUT_CHARS,
-        kill_process.stdout.read()[-MAX_OUTPUT_CHARS:]))
+    tf.logging.info(
+        f'stdout for {kill_process.name} (last {MAX_OUTPUT_CHARS} chars): {kill_process.stdout.read()[-MAX_OUTPUT_CHARS:]}\n'
+    )
     kill_process.stderr.seek(0)
-    tf.logging.info('stderr for {} (last {} chars): {}\n'.format(
-        kill_process.name, MAX_OUTPUT_CHARS,
-        kill_process.stderr.read()[-MAX_OUTPUT_CHARS:]))
+    tf.logging.info(
+        f'stderr for {kill_process.name} (last {MAX_OUTPUT_CHARS} chars): {kill_process.stderr.read()[-MAX_OUTPUT_CHARS:]}\n'
+    )
   return wait_process_stdouts
 
 
@@ -189,7 +189,7 @@ def _spawn_benchmark_processes(output_dir_path, num_workers, num_ps,
   output_base_dir = platforms_util.get_test_output_dir()
   output_dir = os.path.join(output_base_dir, output_dir_path)
   os.makedirs(output_dir)
-  tf.logging.info('Outputs of processes will be outputted to: %s' % output_dir)
+  tf.logging.info(f'Outputs of processes will be outputted to: {output_dir}')
 
   args = platforms_util.get_command_to_run_python_module(
       'benchmark_cnn_distributed_test_runner')
@@ -208,11 +208,11 @@ def _spawn_benchmark_processes(output_dir_path, num_workers, num_ps,
     ]
     if num_ps > 0:
       ps_hosts_str = ','.join('localhost:%d' % p for p in ps_ports)
-      args.append('--ps_hosts=' + ps_hosts_str)
+      args.append(f'--ps_hosts={ps_hosts_str}')
     else:
       controller_host_str = ','.join('localhost:%d' % p
                                      for p in controller_ports)
-      args.append('--controller_host=' + controller_host_str)
+      args.append(f'--controller_host={controller_host_str}')
   env = os.environ.copy()
   # Allow stdout to be viewed before the process ends.
   env['PYTHONUNBUFFERED'] = '1'
@@ -458,17 +458,31 @@ class DistributedVariableUpdateTest(tf.test.TestCase):
     # another worker reads it. This probably does not harm training, but it
     # does mean we cannot easily test that case. So, we use one worker.
     self._test_variable_update(
-        test_name + '_ps', num_workers=1, num_ps=2, num_controllers=0,
-        params=params._replace(variable_update='parameter_server'))
+        f'{test_name}_ps',
+        num_workers=1,
+        num_ps=2,
+        num_controllers=0,
+        params=params._replace(variable_update='parameter_server'),
+    )
 
     self._test_variable_update(
-        test_name + '_rep', num_workers=2, num_ps=1, num_controllers=0,
-        params=params._replace(variable_update='distributed_replicated'))
+        f'{test_name}_rep',
+        num_workers=2,
+        num_ps=1,
+        num_controllers=0,
+        params=params._replace(variable_update='distributed_replicated'),
+    )
 
     self._test_variable_update(
-        test_name + '_allreduce', num_workers=2, num_ps=0, num_controllers=1,
-        params=params._replace(variable_update='distributed_all_reduce',
-                               all_reduce_spec='psgpu#%d' % params.num_gpus))
+        f'{test_name}_allreduce',
+        num_workers=2,
+        num_ps=0,
+        num_controllers=1,
+        params=params._replace(
+            variable_update='distributed_all_reduce',
+            all_reduce_spec='psgpu#%d' % params.num_gpus,
+        ),
+    )
 
   def testVarUpdateDefault(self):
     params = test_util.get_var_update_params()

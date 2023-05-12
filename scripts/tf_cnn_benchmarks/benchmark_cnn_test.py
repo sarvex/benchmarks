@@ -99,10 +99,12 @@ class TfCnnBenchmarksModelTest(tf.test.TestCase):
     tf.reset_default_graph()
     # Test if checkpoint had been saved.
     ckpt = tf.train.get_checkpoint_state(params.train_dir)
-    match = re.match(os.path.join(params.train_dir, r'model.ckpt-(\d+).index'),
-                     ckpt.model_checkpoint_path + '.index')
+    match = re.match(
+        os.path.join(params.train_dir, r'model.ckpt-(\d+).index'),
+        f'{ckpt.model_checkpoint_path}.index',
+    )
     self.assertTrue(match)
-    self.assertGreaterEqual(int(match.group(1)), params.num_batches)
+    self.assertGreaterEqual(int(match[1]), params.num_batches)
     params = params._replace(num_batches=2)
     # Reload the model
     bench = benchmark_cnn.BenchmarkCNN(params)
@@ -110,10 +112,12 @@ class TfCnnBenchmarksModelTest(tf.test.TestCase):
     # Check if global step has been restored.
     self.assertNotEqual(bench.init_global_step, 0)
     ckpt = tf.train.get_checkpoint_state(params.train_dir)
-    match = re.match(os.path.join(params.train_dir, r'model.ckpt-(\d+).index'),
-                     ckpt.model_checkpoint_path + '.index')
+    match = re.match(
+        os.path.join(params.train_dir, r'model.ckpt-(\d+).index'),
+        f'{ckpt.model_checkpoint_path}.index',
+    )
     self.assertTrue(match)
-    self.assertGreaterEqual(int(match.group(1)), params.num_batches)
+    self.assertGreaterEqual(int(match[1]), params.num_batches)
     # Check that the batch norm moving averages are restored from checkpoints
     with tf.Graph().as_default():
       bench = benchmark_cnn.BenchmarkCNN(params)
@@ -240,9 +244,9 @@ class TfCnnBenchmarksModelTest(tf.test.TestCase):
         staged_vars=staged_vars,
         optimizer=optimizer,
         all_reduce_spec=all_reduce_spec,
-        compact_gradient_transfer=False if all_reduce_spec == 'nccl' else True,
+        compact_gradient_transfer=all_reduce_spec != 'nccl',
         use_fp16=use_fp16,
-        fp16_loss_scale=2.,
+        fp16_loss_scale=2.0,
         fp16_vars=fp16_vars,
         fp16_enable_auto_loss_scale=fp16_enable_auto_loss_scale,
         fp16_inc_loss_scale_every_n=fp16_inc_loss_scale_every_n,
@@ -258,12 +262,11 @@ class TfCnnBenchmarksModelTest(tf.test.TestCase):
       all_vars = tf.global_variables() + tf.local_variables()
       if params.variable_update == 'parameter_server':
         for v in all_vars:
-          tf.logging.debug('var: %s' % v.name)
-          match = re.match(r'tower_(\d+)/v/gpu_cached_inputs:0', v.name)
-          if match:
-            self.assertEqual(v.device, '/device:GPU:%s' % match.group(1))
+          tf.logging.debug(f'var: {v.name}')
+          if match := re.match(r'tower_(\d+)/v/gpu_cached_inputs:0', v.name):
+            self.assertEqual(v.device, f'/device:GPU:{match[1]}')
           elif v.name.startswith('v/'):
-            self.assertEqual(v.device, '/device:%s:0' % local_parameter_device)
+            self.assertEqual(v.device, f'/device:{local_parameter_device}:0')
             self._assert_correct_var_type(v, params)
           elif v.name in ('input_processing/images:0',
                           'input_processing/labels:0', 'init_learning_rate:0',
@@ -271,7 +274,7 @@ class TfCnnBenchmarksModelTest(tf.test.TestCase):
                           'loss_scale_normal_steps:0'):
             self.assertEqual(v.device, '/device:CPU:0')
           else:
-            raise ValueError('Unexpected variable %s' % v.name)
+            raise ValueError(f'Unexpected variable {v.name}')
       else:
         v0_count = 0
         v1_count = 0
@@ -296,7 +299,7 @@ class TfCnnBenchmarksModelTest(tf.test.TestCase):
                           'loss_scale_normal_steps:0'):
             self.assertEqual(v.device, '/device:CPU:0')
           else:
-            raise ValueError('Unexpected variable %s' % v.name)
+            raise ValueError(f'Unexpected variable {v.name}')
         self.assertEqual(v0_count, v1_count)
 
       # Validate summary ops in the model depending on verbosity level
@@ -628,8 +631,7 @@ class TfCnnBenchmarksTest(tf.test.TestCase):
       # training runs of 10 steps each. We save a checkpoint every 2 steps and
       # keep the last 3 checkpoints, so at the end, we should have checkpoints
       # for steps 16, 18, and 20.
-      matches = glob.glob(os.path.join(params.train_dir,
-                                       'model.ckpt-{}.*'.format(i)))
+      matches = glob.glob(os.path.join(params.train_dir, f'model.ckpt-{i}.*'))
       if i in (16, 18, 20):
         self.assertTrue(matches)
       else:
@@ -699,7 +701,7 @@ class TfCnnBenchmarksTest(tf.test.TestCase):
   def testMoveTrainDir(self):
     params = test_util.get_params('testMoveTrainDir')
     self._train_and_eval_local(params)
-    new_train_dir = params.train_dir + '_moved'
+    new_train_dir = f'{params.train_dir}_moved'
     os.rename(params.train_dir, new_train_dir)
     params = params._replace(train_dir=new_train_dir, eval=True)
     self._run_benchmark_cnn_with_black_and_white_images(params)
@@ -802,12 +804,11 @@ class TfCnnBenchmarksTest(tf.test.TestCase):
       savable_vars = bench.variable_mgr.savable_variables()
       # Assert all global variables are in savable_vars
       for v in tf.global_variables():
-        if not v.name.startswith(
-            variable_mgr_util.PS_SHADOW_VAR_PREFIX + '/v0'):
+        if not v.name.startswith(f'{variable_mgr_util.PS_SHADOW_VAR_PREFIX}/v0'):
           self.assertEqual(v.name, 'global_step:0')
         name = bench.variable_mgr._strip_port(v.name)
         if name.startswith(variable_mgr_util.PS_SHADOW_VAR_PREFIX):
-          name = name[len(variable_mgr_util.PS_SHADOW_VAR_PREFIX + '/'):]
+          name = name[len(f'{variable_mgr_util.PS_SHADOW_VAR_PREFIX}/'):]
         self.assertIn(name, savable_vars)
         self.assertIn(savable_vars[name], tf.global_variables())
       # Assert all local variables on the first tower are in savable_vars
@@ -897,11 +898,11 @@ class TfCnnBenchmarksTest(tf.test.TestCase):
       with self.test_session(graph=graph, use_gpu=True) as sess:
         items = global_step_to_expected_learning_rate.items()
         for global_step_val, expected_learning_rate in items:
-          self.assertAlmostEqual(sess.run(learning_rate,
-                                          {global_step: global_step_val}),
-                                 expected_learning_rate,
-                                 msg='at global_step:{}'.
-                                 format(global_step_val))
+          self.assertAlmostEqual(
+              sess.run(learning_rate, {global_step: global_step_val}),
+              expected_learning_rate,
+              msg=f'at global_step:{global_step_val}',
+          )
 
   def testLearningRateModelSpecificResNet(self):
     params = benchmark_cnn.make_params(model='resnet50',
@@ -1069,11 +1070,8 @@ class TfCnnBenchmarksTest(tf.test.TestCase):
       self.assertEqual(eval_output.top_1_accuracy, expected_eval_output)
       self.assertEqual(eval_output.top_5_accuracy, expected_eval_output)
 
-    num_eval_batches_found = 0
     eval_batch_regex = re.compile(r'^\d+\t[0-9.]+ examples/sec$')
-    for log in logs:
-      if eval_batch_regex.match(log):
-        num_eval_batches_found += 1
+    num_eval_batches_found = sum(1 for log in logs if eval_batch_regex.match(log))
     self.assertEqual(num_eval_batches_found, expected_num_eval_batches_found)
 
   def testEvalDuringTraining(self):

@@ -304,8 +304,7 @@ class HierarchicalCopyAlgorithm(BatchAllReduceAlgorithm):
 
       reduced_tensors.append(reduced_tensors_bcast)
 
-    reduced_tensors = list(zip(*reduced_tensors))
-    return reduced_tensors
+    return list(zip(*reduced_tensors))
 
   def __get_main_devices(self, tensor_index, num_devices):
     """Returns the pair of main devices to use for initial reduction.
@@ -327,8 +326,9 @@ class HierarchicalCopyAlgorithm(BatchAllReduceAlgorithm):
                                           (num_devices // 2)) % num_devices
     elif self._network_topology == constants.NetworkTopology.GCP_V100:
       if num_devices != 8:
-        raise ValueError('HierarchicalCopy only supports eight devices in %s.' %
-                         self._network_topology)
+        raise ValueError(
+            f'HierarchicalCopy only supports eight devices in {self._network_topology}.'
+        )
       # TODO(hinsu): Generalize main device indices to handle any other
       # isomorphic connection graph that connects two cliques using connections
       # other than 0-5 and 2-7.
@@ -337,8 +337,8 @@ class HierarchicalCopyAlgorithm(BatchAllReduceAlgorithm):
     else:
       # TODO(reedwm): make this logic more general for arbitrary topology.
       raise ValueError(
-          'HierarchicalCopy is not supported for %s network topology.' %
-          self._network_topology)
+          f'HierarchicalCopy is not supported for {self._network_topology} network topology.'
+      )
 
 
 class AllReduceSpecAlgorithm(BatchAllReduceAlgorithm):
@@ -382,7 +382,7 @@ def algorithm_from_params(params):
     if params.gpu_indices:
       gpu_indices = [int(x) for x in params.gpu_indices.split(',')]
     else:
-      gpu_indices = [x for x in range(params.num_gpus)]
+      gpu_indices = list(range(params.num_gpus))
     return AllReduceSpecAlgorithm(params.all_reduce_spec, gpu_indices,
                                   params.agg_small_grads_max_bytes,
                                   params.agg_small_grads_max_group)
@@ -570,15 +570,11 @@ class _TensorPacker(object):
     split_size = total_tensor_size // self._num_splits
     split_size_last = total_tensor_size - split_size * (self._num_splits - 1)
     split_sizes = [split_size] * (self._num_splits - 1) + [split_size_last]
-    tensor_packs = tf.split(concatenated_tensor, split_sizes)
-    return tensor_packs
+    return tf.split(concatenated_tensor, split_sizes)
 
   def undo_maybe_split_tensors(self, tensor_packs):
     """Undo maybe_split_tensors()."""
-    if not self._num_splits:
-      return tensor_packs
-
-    return [tf.concat(tensor_packs, 0)]
+    return tensor_packs if not self._num_splits else [tf.concat(tensor_packs, 0)]
 
   def undo_maybe_concat_tensors(self, concatenated_tensor):
     """Undo maybe_concat_tensors()."""
@@ -593,11 +589,10 @@ class _TensorPacker(object):
 
     tensors_with_sizes = tf.split(concatenated_tensor,
                                   self._orig_sizes)
-    tensors_with_shapes = [
-        tf.reshape(grad, shape) for grad, shape in zip(
-            tensors_with_sizes, self._orig_shapes)
+    return [
+        tf.reshape(grad, shape)
+        for grad, shape in zip(tensors_with_sizes, self._orig_shapes)
     ]
-    return tensors_with_shapes
 
   def maybe_compact_tensors(self, device_tensors):
     """Cast tensors to fp16 and store their original types."""
@@ -608,9 +603,7 @@ class _TensorPacker(object):
       raise RuntimeError('maybe_compact_tensors can only be called once.')
 
     self._before_compact_dtypes = [t.dtype for t in device_tensors]
-    compact_tensors = [tf.cast(t, tf.float16) for t in device_tensors]
-
-    return compact_tensors
+    return [tf.cast(t, tf.float16) for t in device_tensors]
 
   def undo_maybe_compact_tensors(self, compact_tensors):
     """Undo maybe_compact_tensors()."""
@@ -621,8 +614,7 @@ class _TensorPacker(object):
       raise RuntimeError('maybe_compact_tensors() must be called before '
                          'undo_maybe_compact_tensors()')
 
-    device_tensors = [
+    return [
         tf.cast(t, dtype)
         for t, dtype in zip(compact_tensors, self._before_compact_dtypes)
     ]
-    return device_tensors

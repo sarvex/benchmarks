@@ -75,7 +75,7 @@ def get_test_image_preprocessor(batch_size, params):
     preprocessor.expected_subset = 'validation' if params.eval else 'train'
     return preprocessor
   else:
-    raise ValueError('Invalid --fake_input: %s' % FLAGS.fake_input)
+    raise ValueError(f'Invalid --fake_input: {FLAGS.fake_input}')
 
 
 def run_with_real_model(params):

@@ -39,12 +39,11 @@ AllReduceSpecTuple = pycoll.namedtuple('AllReduceSpecTuple', 'alg shards limit')
 
 def parse_general_int(s):
   """Parse integer with power-of-2 suffix eg. 32k."""
-  mo = re.match(r'(\d+)([KkMGT]?)$', s)
-  if mo:
+  if mo := re.match(r'(\d+)([KkMGT]?)$', s):
     i, suffix = mo.group(1, 2)
     v = int(i)
     if suffix:
-      if suffix == 'K' or suffix == 'k':
+      if suffix in ['K', 'k']:
         v *= 1024
       elif suffix == 'M':
         v *= (1024 * 1024)
@@ -53,7 +52,7 @@ def parse_general_int(s):
       elif suffix == 'T':
         v *= (1024 * 1024 * 1024 * 1024)
       else:
-        raise ValueError('invalid integer string %s' % s)
+        raise ValueError(f'invalid integer string {s}')
     return v
   else:
     v = int(s)
@@ -116,7 +115,7 @@ def parse_all_reduce_spec(all_reduce_spec):
   """
   range_parts = all_reduce_spec.split(':') + ['-1']
   if len(range_parts) % 2:
-    raise ValueError('all_reduce_spec not well formed: %s' % all_reduce_spec)
+    raise ValueError(f'all_reduce_spec not well formed: {all_reduce_spec}')
   limit = 0
   spec = []
   alg = None
@@ -127,8 +126,9 @@ def parse_all_reduce_spec(all_reduce_spec):
         limit = parse_general_int(range_part)
         spec.append(AllReduceSpecTuple(alg=alg, shards=shards, limit=limit))
       except ValueError:
-        raise ValueError('all_reduce_spec (%s) contains non-integer range %s' %
-                         (all_reduce_spec, range_part))
+        raise ValueError(
+            f'all_reduce_spec ({all_reduce_spec}) contains non-integer range {range_part}'
+        )
     else:
       alg = range_part
       alg_parts = range_part.split('#')
@@ -145,8 +145,8 @@ def parse_all_reduce_spec(all_reduce_spec):
           'nccl', 'nccl/xring', 'nccl/rechd', 'nccl/pscpu', 'xring', 'pscpu',
           'psgpu', 'pscpu/pscpu', 'collective'
       ]:
-        raise ValueError('all_reduce_spec (%s) contains invalid alg %s' %
-                         (all_reduce_spec, alg))
+        raise ValueError(
+            f'all_reduce_spec ({all_reduce_spec}) contains invalid alg {alg}')
   return spec
 
 
@@ -164,9 +164,8 @@ def build_all_reduce_device_prefixes(job_name, num_tasks):
   """
   if job_name != 'localhost':
     return ['/job:%s/task:%d' % (job_name, d) for d in range(0, num_tasks)]
-  else:
-    assert num_tasks == 1
-    return ['/job:%s' % job_name]
+  assert num_tasks == 1
+  return [f'/job:{job_name}']
 
 
 def group_device_names(devices, group_size):
@@ -191,7 +190,7 @@ def group_device_names(devices, group_size):
                                                              group_size))
   num_groups = (
       num_devices // group_size + (1 if (num_devices % group_size != 0) else 0))
-  groups = [[] for i in range(num_groups)]
+  groups = [[] for _ in range(num_groups)]
   for i in range(0, num_groups * group_size):
     groups[i % num_groups].append(devices[i % num_devices])
   return groups
@@ -241,7 +240,7 @@ def new_collective_instance_key():
 
 
 _group_key = 1
-_group_key_table = dict()
+_group_key_table = {}
 
 
 def collective_group_key(devices):
@@ -262,8 +261,7 @@ def collective_group_key(devices):
     new_key = _group_key
     _group_key += 1
     _group_key_table[concat] = new_key
-  rv = _group_key_table[concat]
-  return rv
+  return _group_key_table[concat]
 
 
 def build_collective_reduce(input_tensors, num_workers, num_shards,
@@ -295,13 +293,10 @@ def build_collective_reduce(input_tensors, num_workers, num_shards,
   group_key = collective_group_key(devices)
   instance_key = new_collective_instance_key()
   out_tensors = []
-  if num_shards == 1:
+  if num_shards != 1 and num_shards == 2 and num_devices > 1:
+    subdiv_offsets = [0, -(num_devices // 2)]
+  elif num_shards != 1 and num_shards == 2 or num_shards == 1:
     subdiv_offsets = [0]
-  elif num_shards == 2:
-    if num_devices > 1:
-      subdiv_offsets = [0, -(num_devices // 2)]
-    else:
-      subdiv_offsets = [0]
   else:
     raise ValueError('Unsupported num_shards %d' % num_shards)
   for d in range(num_devices):
@@ -369,10 +364,7 @@ def sum_grad_and_var_all_reduce(single_session,
       else:
         raise ValueError('unsupported all_reduce alg: ', alg)
 
-  result = []
-  for (_, v), g in zip(grad_and_vars, summed_grads):
-    result.append([g, v])
-  return result
+  return [[g, v] for (_, v), g in zip(grad_and_vars, summed_grads)]
 
 
 def contains_any(haystack, needles):
@@ -386,10 +378,7 @@ def contains_any(haystack, needles):
     True if any element of needles is a substring of haystack,
       False otherwise.
   """
-  for n in needles:
-    if n in haystack:
-      return True
-  return False
+  return any(n in haystack for n in needles)
 
 
 def sum_gradients_all_reduce(single_session,
@@ -427,7 +416,7 @@ def sum_gradients_all_reduce(single_session,
   alg_contains_shuffle = contains_any(alg, ['pscpu', 'psgpu'])
   is_hierarchical = '/' in alg
   if 'pscpu' in alg:
-    aux_devices = [prefix + '/cpu:0' for prefix in dev_prefixes]
+    aux_devices = [f'{prefix}/cpu:0' for prefix in dev_prefixes]
   elif 'psgpu' in alg:
     aux_devices = [
         prefix + '/gpu:%d' % i
@@ -489,15 +478,13 @@ def extract_ranges(index_list, range_size_limit=32):
   ranges = []
   singles = []
   for i in index_list[1:]:
-    if i == last + 1 and (last - first) <= range_size_limit:
-      last = i
-    else:
+    if i != last + 1 or last - first > range_size_limit:
       if last > first:
         ranges.append([first, last])
       else:
         singles.append(first)
       first = i
-      last = i
+    last = i
   if last > first:
     ranges.append([first, last])
   else:
@@ -556,9 +543,8 @@ def unpack_grad_tuple(gv, gpt):
   with tf.device(gv[0][0].device):
     with tf.name_scope('unpack'):
       splits = tf.split(gv[0], elt_widths)
-      unpacked_gv = []
-      for idx, s in enumerate(splits):
-        unpacked_gv.append((tf.reshape(s, gpt.shapes[idx]), gpt.vars[idx]))
+      unpacked_gv = [(tf.reshape(s, gpt.shapes[idx]), gpt.vars[idx])
+                     for idx, s in enumerate(splits)]
   return unpacked_gv
 
 
@@ -599,23 +585,21 @@ def pack_small_tensors(tower_grads, max_bytes=0, max_group=0):
   small_ranges, small_singles = extract_ranges(
       small_indices, range_size_limit=max_group)
   large_indices = sorted(large_indices + small_singles)
+  if not small_ranges:
+    return tower_grads, None
+  new_tower_grads = []
   num_gv = len(tower_grads[0])
   packing = {}
-  if small_ranges:
-    new_tower_grads = []
-    for dev_idx, gv_list in enumerate(tower_grads):
-      assert len(gv_list) == num_gv
-      new_gv_list = []
-      for r in small_ranges:
-        key = '%d:%d' % (dev_idx, len(new_gv_list))
-        new_gv_list.append((pack_range(key, packing, gv_list, r),
-                            'packing_var_placeholder'))
-      for i in large_indices:
-        new_gv_list.append(gv_list[i])
-      new_tower_grads.append(new_gv_list)
-    return new_tower_grads, packing
-  else:
-    return tower_grads, None
+  for dev_idx, gv_list in enumerate(tower_grads):
+    assert len(gv_list) == num_gv
+    new_gv_list = []
+    for r in small_ranges:
+      key = '%d:%d' % (dev_idx, len(new_gv_list))
+      new_gv_list.append((pack_range(key, packing, gv_list, r),
+                          'packing_var_placeholder'))
+    new_gv_list.extend(gv_list[i] for i in large_indices)
+    new_tower_grads.append(new_gv_list)
+  return new_tower_grads, packing
 
 
 def unpack_small_tensors(tower_grads, packing):

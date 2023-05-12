@@ -41,7 +41,7 @@ class ImagenetResnetModel(model_lib.CNNModel):
     }
     batch_size = default_batch_sizes.get(resnet_size, 32)
     default_learning_rate = 0.0125 * batch_size / 32
-    model_name = 'official_resnet_{}_v{}'.format(resnet_size, version)
+    model_name = f'official_resnet_{resnet_size}_v{version}'
     super(ImagenetResnetModel, self).__init__(
         model_name, 224, batch_size, default_learning_rate, params=params)
     self.resnet_size = resnet_size

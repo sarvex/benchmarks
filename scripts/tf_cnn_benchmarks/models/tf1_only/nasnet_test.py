@@ -150,9 +150,8 @@ class NASNetTest(tf.test.TestCase):
                         'Logits': [batch_size, num_classes],
                         'Predictions': [batch_size, num_classes]}
     self.assertCountEqual(endpoints_shapes.keys(), end_points.keys())
-    for endpoint_name in endpoints_shapes:
-      tf.logging.info('Endpoint name: {}'.format(endpoint_name))
-      expected_shape = endpoints_shapes[endpoint_name]
+    for endpoint_name, expected_shape in endpoints_shapes.items():
+      tf.logging.info(f'Endpoint name: {endpoint_name}')
       self.assertIn(endpoint_name, end_points)
       self.assertListEqual(end_points[endpoint_name].get_shape().as_list(),
                            expected_shape)
@@ -186,9 +185,8 @@ class NASNetTest(tf.test.TestCase):
                         'Logits': [batch_size, num_classes],
                         'Predictions': [batch_size, num_classes]}
     self.assertCountEqual(endpoints_shapes.keys(), end_points.keys())
-    for endpoint_name in endpoints_shapes:
-      tf.logging.info('Endpoint name: {}'.format(endpoint_name))
-      expected_shape = endpoints_shapes[endpoint_name]
+    for endpoint_name, expected_shape in endpoints_shapes.items():
+      tf.logging.info(f'Endpoint name: {endpoint_name}')
       self.assertIn(endpoint_name, end_points)
       self.assertListEqual(end_points[endpoint_name].get_shape().as_list(),
                            expected_shape)
@@ -228,9 +226,8 @@ class NASNetTest(tf.test.TestCase):
                         'Logits': [batch_size, num_classes],
                         'Predictions': [batch_size, num_classes]}
     self.assertCountEqual(endpoints_shapes.keys(), end_points.keys())
-    for endpoint_name in endpoints_shapes:
-      tf.logging.info('Endpoint name: {}'.format(endpoint_name))
-      expected_shape = endpoints_shapes[endpoint_name]
+    for endpoint_name, expected_shape in endpoints_shapes.items():
+      tf.logging.info(f'Endpoint name: {endpoint_name}')
       self.assertIn(endpoint_name, end_points)
       self.assertListEqual(end_points[endpoint_name].get_shape().as_list(),
                            expected_shape)

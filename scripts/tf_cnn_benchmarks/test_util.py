@@ -132,7 +132,7 @@ def get_training_outputs_from_logs(logs, print_training_accuracy):
       loss = float(parts[8])
       outputs.append(TrainingOutput(loss=loss, top_1_accuracy=top_1_acc,
                                     top_5_accuracy=top_5_acc))
-  assert len(outputs) >= 1
+  assert outputs
   return outputs
 
 
@@ -432,7 +432,7 @@ def manually_compute_losses(numpy_inputs, inputs_placeholder, loss, num_workers,
   with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
     losses = [[] for _ in range(num_workers)]
-    for i in range(params.num_batches):
+    for _ in range(params.num_batches):
       computed_grads = []
       for j in range(num_workers):
         batch_feed = next(batch_iterators[j])

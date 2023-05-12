@@ -52,8 +52,8 @@ def main(positional_arguments):
   # arguments.
   assert len(positional_arguments) >= 1
   if len(positional_arguments) > 1:
-    raise ValueError('Received unknown positional arguments: %s'
-                     % positional_arguments[1:])
+    raise ValueError(
+        f'Received unknown positional arguments: {positional_arguments[1:]}')
 
   params = benchmark_cnn.make_params_from_flags()
   with mlperf.mlperf_logger(absl_flags.FLAGS.ml_perf_compliance_logging,

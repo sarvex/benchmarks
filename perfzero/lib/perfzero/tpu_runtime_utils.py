@@ -16,9 +16,7 @@ except ImportError:
 
 def _as_text(s):
   """Converts a byte/string into string."""
-  if isinstance(s, bytes):
-    return s.decode('utf-8')
-  return s
+  return s.decode('utf-8') if isinstance(s, bytes) else s
 
 
 def _get_content(url):
@@ -67,10 +65,9 @@ def _configure_tpu_version(tpu_name, version_label, new_version_id):
   else:
     logging.info('Using the default tpu version id.')
 
-  workers = tpu_client.network_endpoints()
-  if workers:
+  if workers := tpu_client.network_endpoints():
     ip_addr = workers[0]['ipAddress']
-    url = 'http://{}:8475/requestversion'.format(ip_addr)
+    url = f'http://{ip_addr}:8475/requestversion'
     return _get_version_info(url, version_label)
   else:
     logging.error('No tpu endpoint info')

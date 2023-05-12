@@ -47,7 +47,7 @@ class DeepSpeechDecoder(object):
     """
     self.labels = labels
     self.blank_index = blank_index
-    self.int_to_char = dict([(i, c) for (i, c) in enumerate(labels)])
+    self.int_to_char = dict(list(enumerate(labels)))
 
   def convert_to_string(self, sequence):
     """Convert a sequence of indexes into corresponding string."""
@@ -108,12 +108,7 @@ class DeepSpeechDecoder(object):
     """Decode the best guess from logits using greedy algorithm."""
     # Merge repeated chars.
     merge = [k for k, _ in itertools.groupby(char_indexes)]
-    # Remove the blank index in the decoded sequence.
-    merge_remove_blank = []
-    for k in merge:
-      if k != self.blank_index:
-        merge_remove_blank.append(k)
-
+    merge_remove_blank = [k for k in merge if k != self.blank_index]
     return self.convert_to_string(merge_remove_blank)
 
   def decode_logits(self, logits):
@@ -229,7 +224,8 @@ class DeepSpeech2Model(model_lib.Model):
         padding='valid',
         use_bias=False,
         activation=tf.nn.relu6,
-        name='cnn_{}'.format(layer_id))
+        name=f'cnn_{layer_id}',
+    )
     return self._batch_norm(inputs, training)
 
   def _rnn_layer(self, inputs, rnn_cell, rnn_hidden_size, layer_id,
@@ -255,24 +251,22 @@ class DeepSpeech2Model(model_lib.Model):
       inputs = self._batch_norm(inputs, training)
 
     # Construct forward/backward RNN cells.
-    fw_cell = rnn_cell(
-        num_units=rnn_hidden_size, name='rnn_fw_{}'.format(layer_id))
+    fw_cell = rnn_cell(num_units=rnn_hidden_size, name=f'rnn_fw_{layer_id}')
 
     if is_bidirectional:
-      bw_cell = rnn_cell(
-          num_units=rnn_hidden_size, name='rnn_bw_{}'.format(layer_id))
+      bw_cell = rnn_cell(num_units=rnn_hidden_size, name=f'rnn_bw_{layer_id}')
       outputs, _ = tf.nn.bidirectional_dynamic_rnn(
           cell_fw=fw_cell,
           cell_bw=bw_cell,
           inputs=inputs,
           dtype=tf.float32,
           swap_memory=True)
-      rnn_outputs = tf.concat(outputs, -1)
+      return tf.concat(outputs, -1)
     else:
-      rnn_outputs = tf.nn.dynamic_rnn(
-          fw_cell, inputs, dtype=tf.float32, swap_memory=True)
-
-    return rnn_outputs
+      return tf.nn.dynamic_rnn(fw_cell,
+                               inputs,
+                               dtype=tf.float32,
+                               swap_memory=True)
 
   def get_input_data_types(self, subset):
     """Returns the list of data types of the inputs."""
@@ -399,8 +393,7 @@ class DeepSpeech2Model(model_lib.Model):
             sequence_length=ctc_input_length,
             ignore_longer_outputs_than_inputs=True),
         axis=1)
-    loss = tf.reduce_mean(losses)
-    return loss
+    return tf.reduce_mean(losses)
 
   PROBABILITY_TENSOR = 'deepspeech2_prob'
   LABEL_TENSOR = 'deepspeech2_label'

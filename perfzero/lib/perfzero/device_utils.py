@@ -26,7 +26,7 @@ def create_drive_from_devices(data_dir, gce_nvme_raid):
     return
 
   devices = _get_nvme_devices()
-  cmd = 'mountpoint -q {}'.format(data_dir)
+  cmd = f'mountpoint -q {data_dir}'
   retcode, _ = utils.run_command(cmd)
   if retcode:
     if len(devices) > 1:
@@ -41,45 +41,37 @@ def _get_nvme_devices():
   cmd = 'lsblk'
   retcode, log = utils.run_command(cmd)
   if retcode:
-    raise Exception('"{}" failed with code:{} and log:\n{}'.format(
-        cmd, retcode, log))
+    raise Exception(f'"{cmd}" failed with code:{retcode} and log:\n{log}')
 
-  lines = log.splitlines()
-  if lines:
+  if lines := log.splitlines():
     for line in lines:
       if line.startswith('nvme'):
         parts = line.split()
-        devices.append('/dev/' + parts[0].strip())
+        devices.append(f'/dev/{parts[0].strip()}')
   return devices
 
 
 def _create_single_drive(data_dir, device):
   """Creates a data drive out of a single device."""
-  cmds = []
-  cmds.append('mkfs.ext4 -F {}'.format(device))
-  cmds.append('mkdir -p {}'.format(data_dir))
-  cmds.append('mount {} {}'.format(device, data_dir))
-  cmds.append('chmod a+w {}'.format(data_dir))
-
+  cmds = [
+      f'mkfs.ext4 -F {device}',
+      f'mkdir -p {data_dir}',
+      f'mount {device} {data_dir}',
+      f'chmod a+w {data_dir}',
+  ]
   utils.run_commands(cmds)
   logging.info('Created and mounted device %s at %s', device, data_dir)
 
 
 def _create_drive_raid(data_dir, devices):
   """Creates a raid zero array of nvme drives."""
-  cmds = []
-  # Passing 'yes' because GCE nvme drive are sometimes in an odd state and
-  # think they are in another raid. mdadm does not have -y option.
-  # Or the kokoro images were left dirty? and that is where the info
-  # comes from.
-  cmds.append('yes | mdadm --create /dev/md0 --level=0 '
-              '--raid-devices={} {}'.format(
-                  len(devices), ' '.join(devices)))
-  cmds.append('mkfs.ext4 -F /dev/md0')
-  cmds.append('mkdir -p {}'.format(data_dir))
-  cmds.append('mount /dev/md0 {}'.format(data_dir))
-  cmds.append('chmod a+w {}'.format(data_dir))
-
+  cmds = [
+      f"yes | mdadm --create /dev/md0 --level=0 --raid-devices={len(devices)} {' '.join(devices)}",
+      'mkfs.ext4 -F /dev/md0',
+      f'mkdir -p {data_dir}',
+      f'mount /dev/md0 {data_dir}',
+      f'chmod a+w {data_dir}',
+  ]
   utils.run_commands(cmds)
   logging.info('Created and mounted RAID array at %s', data_dir)
 

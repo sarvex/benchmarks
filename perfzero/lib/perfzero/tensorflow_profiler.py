@@ -95,11 +95,12 @@ class TensorFlowProfiler(object):
       end_time_str = time_str.split(':')[1].strip() if ':' in time_str else None
       end_time = int(end_time_str) if end_time_str else 365 * 24 * 60 * 60
       if begin_time <= last_end_time:
-        raise ValueError('begin_time {} is no larger than the last '
-                         'end_time {}'.format(begin_time, last_end_time))
+        raise ValueError(
+            f'begin_time {begin_time} is no larger than the last end_time {last_end_time}'
+        )
       if end_time <= begin_time:
-        raise ValueError('end_time {} is no larger than begin_time {}'.format(
-            end_time, begin_time))
+        raise ValueError(
+            f'end_time {end_time} is no larger than begin_time {begin_time}')
       # 4th positional arg added to support Python2 for the short-term.
       self.scheduler.enter(begin_time, 1, _start_profiler,
         argument=(self.output_dir,))

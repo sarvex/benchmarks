@@ -97,18 +97,20 @@ class MlPerfLogger(object):
     if key in self.tag_set:
       self._log_fn(key, value, stack_offset)
     else:
-      print('Ignoring MLPerf logging item key=%s, value=%s for model %s' %
-            (key, value, self.model))
+      print(
+          f'Ignoring MLPerf logging item key={key}, value={value} for model {self.model}'
+      )
 
   def log_deferred_tensor_value(self, key, tensor_value, global_step,
                                 stack_offset=2, every_n=1):
     """Logs the value of a tensor when the graph is run."""
-    caller = '(%s)' % mlperf_log.get_caller(stack_offset, self._root_dir)
+    caller = f'({mlperf_log.get_caller(stack_offset, self._root_dir)})'
     def create_print_op():
       return tf.print(_MLPERF_LOG_PREFIX, self.mlperf_model_name,
                       tf.timestamp(), caller, key,
                       ': { "deferred": true, "value":', tensor_value, '}',
                       output_stream=sys.stdout)
+
     maybe_print = tf.cond(tf.equal(global_step % every_n, 0), create_print_op,
                           tf.no_op)
     with tf.control_dependencies([maybe_print]):
@@ -162,9 +164,7 @@ class MlPerfLogger(object):
       # printing them as we do them.
       self.log(key=mlperf_log.TRAIN_EPOCH, value=i, stack_offset=3)
     if num_epochs_int != num_epochs:
-      value = (str(num_epochs_int) +
-               ', but this epoch only has {}% of the examples of a normal epoch'
-               .format(100 * (num_epochs - num_epochs_int)))
+      value = f'{num_epochs_int}, but this epoch only has {100 * (num_epochs - num_epochs_int)}% of the examples of a normal epoch'
       self.log(key=mlperf_log.TRAIN_EPOCH, value=value, stack_offset=3)
 
   def log_input_resize_aspect_preserving(self, height, width, scale_factor):

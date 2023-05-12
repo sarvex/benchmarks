@@ -138,14 +138,10 @@ class VariableMgr(object):
       The set of trainable variables on the specified device.
     """
     del rel_device_num, writable
-    if self.each_tower_has_variables():
-      params = [
-          v for v in tf.trainable_variables()
-          if v.name.startswith('v%s/' % abs_device_num)
-      ]
-    else:
-      params = tf.trainable_variables()
-    return params
+    return ([
+        v for v in tf.trainable_variables()
+        if v.name.startswith(f'v{abs_device_num}/')
+    ] if self.each_tower_has_variables() else tf.trainable_variables())
 
   @contextlib.contextmanager
   def reuse_variables(self):
@@ -180,8 +176,11 @@ class VariableMgrIndependent(VariableMgr):
     return True
 
   def create_outer_variable_scope(self, device_num):
-    return tf.variable_scope('v%s' % device_num, reuse=self._reuse_vars,
-                             use_resource=self.use_resource_vars)
+    return tf.variable_scope(
+        f'v{device_num}',
+        reuse=self._reuse_vars,
+        use_resource=self.use_resource_vars,
+    )
 
   def preprocess_device_grads(self, device_grads):
     return (self.benchmark_cnn.devices, device_grads)
@@ -191,12 +190,9 @@ class VariableMgrIndependent(VariableMgr):
     tower_grad = device_grads[device_num]
 
     if self.benchmark_cnn.enable_auto_loss_scale and device_num == 0:
-      # Since we don't aggregate variables in --independent mode, we cannot tell
-      # if there are NaNs on all GPUs. So we arbitrarily choose to only check
-      # NaNs on the first GPU.
-      has_inf_nan_list = []
-      for grad, _ in tower_grad:
-        has_inf_nan_list.append(tf.reduce_all(tf.is_finite(grad)))
+      has_inf_nan_list = [
+          tf.reduce_all(tf.is_finite(grad)) for grad, _ in tower_grad
+      ]
       self.grad_has_inf_nan = tf.logical_not(tf.reduce_all(has_inf_nan_list))
 
     return tower_grad
@@ -260,9 +256,7 @@ class VariableMgrLocalFetchFromStagedPS(VariableMgrLocalFetchFromPS):
     # Indexed by device_num and var_name, each entry stores the "put" and "get"
     # ops used for that variable on that device:
     #   staging_vars_on_devices[device_num][var_name] == (put_op, get_op)
-    self.staging_vars_on_devices = [
-        dict() for _ in self.benchmark_cnn.raw_devices
-    ]
+    self.staging_vars_on_devices = [{} for _ in self.benchmark_cnn.raw_devices]
 
   def supports_staged_vars(self):
     return True
@@ -313,8 +307,11 @@ class VariableMgrLocalReplicated(VariableMgr):
     return True
 
   def create_outer_variable_scope(self, device_num):
-    return tf.variable_scope('v%s' % device_num, reuse=self._reuse_vars,
-                             use_resource=self.use_resource_vars)
+    return tf.variable_scope(
+        f'v{device_num}',
+        reuse=self._reuse_vars,
+        use_resource=self.use_resource_vars,
+    )
 
   def preprocess_device_grads(self, device_grads):
     compact_grads = (self.benchmark_cnn.params.use_fp16 and
@@ -416,8 +413,11 @@ class VariableMgrDistributedAllReduce(VariableMgr):
     Returns:
       the requested variable_scope
     """
-    return tf.variable_scope('v%s' % device_num, reuse=self._reuse_vars,
-                             use_resource=self.use_resource_vars)
+    return tf.variable_scope(
+        f'v{device_num}',
+        reuse=self._reuse_vars,
+        use_resource=self.use_resource_vars,
+    )
 
   def preprocess_device_grads(self, device_grads):
     remaining_grads = device_grads
@@ -504,14 +504,14 @@ class VariableMgrCollectiveAllReduce(VariableMgr):
     super(VariableMgrCollectiveAllReduce, self).__init__(benchmark_cnn)
     if not all_reduce_spec:
       raise ValueError(
-          'collective_all_reduce requires a non-empty all_reduce_spec: %s'
-          % all_reduce_spec)
+          f'collective_all_reduce requires a non-empty all_reduce_spec: {all_reduce_spec}'
+      )
     parsed_spec = allreduce.parse_all_reduce_spec(all_reduce_spec)
     # So far we only support a length-1 all_reduce_spec
     if len(parsed_spec) > 1 or parsed_spec[0].limit > 0:
       raise ValueError(
-          'collective_all_reduce requires one single-range all_reduce_spec %s'
-          % parsed_spec)
+          f'collective_all_reduce requires one single-range all_reduce_spec {parsed_spec}'
+      )
     self._all_reduce_spec = parsed_spec[0]
     if self._all_reduce_spec.alg != 'collective':
       raise ValueError(
@@ -522,7 +522,7 @@ class VariableMgrCollectiveAllReduce(VariableMgr):
     self._task_id = task_id
     self._allreduce_merge_scope = allreduce_merge_scope
     self._instance_key_counter = 10000
-    self._instance_key_table = dict()
+    self._instance_key_table = {}
     self._single_session = False
     # List of prefixes for generating PS devices, unused here.
     self._all_reduce_device_prefixes = None
@@ -539,7 +539,7 @@ class VariableMgrCollectiveAllReduce(VariableMgr):
     Returns:
       the requested variable_scope
     """
-    return tf.variable_scope('v%s' % device_num, reuse=self._reuse_vars)
+    return tf.variable_scope(f'v{device_num}', reuse=self._reuse_vars)
 
   def preprocess_device_grads(self, device_grads):
     reduced_grads = allreduce.sum_gradients_all_reduce(
@@ -582,14 +582,13 @@ class VariableMgrCollectiveAllReduce(VariableMgr):
     group_size = self._num_workers * self._num_gpus
     post_init_ops = []
     # Gather variables into same-var-different-device groups.
-    vars_by_suffix = dict()
+    vars_by_suffix = {}
     for v in global_vars:
       split_name = v.name.split('/')
-      mo = re.match(r'v(\d+)$', split_name[0])
-      if mo:
-        device_id = int(mo.group(1))
+      if mo := re.match(r'v(\d+)$', split_name[0]):
+        device_id = int(mo[1])
         suffix = '/'.join(split_name[1:])
-        if suffix in vars_by_suffix.keys():
+        if suffix in vars_by_suffix:
           vars_by_suffix[suffix].append(v)
         else:
           vars_by_suffix[suffix] = [v]
@@ -604,9 +603,8 @@ class VariableMgrCollectiveAllReduce(VariableMgr):
       instance_key = self._get_instance_key(suffix)
       for v in vlist:
         split_name = v.name.split('/')
-        mo = re.match(r'v(\d+)$', split_name[0])
-        if mo:
-          device_id = int(mo.group(1))
+        if mo := re.match(r'v(\d+)$', split_name[0]):
+          device_id = int(mo[1])
           if (self._task_id == 0 and device_id == 0):
             with tf.device(v.device):
               bcast_send = allreduce.broadcast_send(
@@ -685,9 +683,7 @@ class VariableMgrDistributedFetchFromStagedPS(
 
   def __init__(self, benchmark_cnn):
     super(VariableMgrDistributedFetchFromStagedPS, self).__init__(benchmark_cnn)
-    self.staging_vars_on_devices = [
-        dict() for _ in self.benchmark_cnn.raw_devices
-    ]
+    self.staging_vars_on_devices = [{} for _ in self.benchmark_cnn.raw_devices]
     self.staged_vars_on_cpu = {}
 
   def create_outer_variable_scope(self, device_num):
@@ -723,9 +719,11 @@ class VariableMgrDistributedReplicated(VariableMgr):
 
   def create_outer_variable_scope(self, device_num):
     return tf.variable_scope(
-        'v%s' % device_num, reuse=self._reuse_vars,
+        f'v{device_num}',
+        reuse=self._reuse_vars,
         custom_getter=variable_mgr_util.OverrideToLocalVariableIfNotPsVar(),
-        use_resource=self.use_resource_vars)
+        use_resource=self.use_resource_vars,
+    )
 
   def preprocess_device_grads(self, device_grads):
     return ([self.benchmark_cnn.param_server_device], device_grads)
@@ -743,7 +741,7 @@ class VariableMgrDistributedReplicated(VariableMgr):
     # Make shadow variable on a parameter server for each original trainable
     # variable.
     for i, (g, v) in enumerate(avg_grads):
-      my_name = variable_mgr_util.PS_SHADOW_VAR_PREFIX + '/' + v.name
+      my_name = f'{variable_mgr_util.PS_SHADOW_VAR_PREFIX}/{v.name}'
       if my_name.endswith(':0'):
         my_name = my_name[:-2]
       new_v = tf.get_variable(
@@ -766,7 +764,7 @@ class VariableMgrDistributedReplicated(VariableMgr):
       for i, (g, v) in enumerate(grads):
         apply_gradient_op = opt.apply_gradients([(g, v)])
         barrier = self.benchmark_cnn.add_sync_queues_and_barrier(
-            'replicate_variable_%s' % i, [apply_gradient_op])
+            f'replicate_variable_{i}', [apply_gradient_op])
         with tf.control_dependencies([barrier]):
           with tf.device(self.benchmark_cnn.cpu_device):
             updated_value = v.read_value()
@@ -780,9 +778,7 @@ class VariableMgrDistributedReplicated(VariableMgr):
         self.grad_has_inf_nan)
 
   def _strip_port(self, s):
-    if s.endswith(':0'):
-      return s[:-2]
-    return s
+    return s[:-2] if s.endswith(':0') else s
 
   def get_post_init_ops(self):
     # Copy initialized variables for variables on the parameter server
@@ -793,19 +789,19 @@ class VariableMgrDistributedReplicated(VariableMgr):
         [(self._strip_port(v.name), v) for v in local_vars])
     post_init_ops = []
     for v in tf.global_variables():
-      if v.name.startswith(variable_mgr_util.PS_SHADOW_VAR_PREFIX + '/v0/'):
+      if v.name.startswith(f'{variable_mgr_util.PS_SHADOW_VAR_PREFIX}/v0/'):
         prefix = self._strip_port(
-            v.name[len(variable_mgr_util.PS_SHADOW_VAR_PREFIX + '/v0'):])
+            v.name[len(f'{variable_mgr_util.PS_SHADOW_VAR_PREFIX}/v0'):])
         for i in range(self.benchmark_cnn.num_gpus):
-          name = 'v%s%s' % (i, prefix)
+          name = f'v{i}{prefix}'
           if name in local_var_by_name:
             copy_to = local_var_by_name[name]
             post_init_ops.append(copy_to.assign(v.read_value()))
     return post_init_ops
 
   def _remove_shadow_var_prefix_if_present(self, var_name):
-    if var_name.startswith(variable_mgr_util.PS_SHADOW_VAR_PREFIX + '/'):
-      return var_name[len(variable_mgr_util.PS_SHADOW_VAR_PREFIX + '/'):]
+    if var_name.startswith(f'{variable_mgr_util.PS_SHADOW_VAR_PREFIX}/'):
+      return var_name[len(f'{variable_mgr_util.PS_SHADOW_VAR_PREFIX}/'):]
     else:
       return var_name
 
@@ -816,10 +812,12 @@ class VariableMgrDistributedReplicated(VariableMgr):
     """Returns a list/dict of savable variables to pass to tf.train.Saver."""
     params = {}
     for v in tf.global_variables():
-      assert (v.name.startswith(variable_mgr_util.PS_SHADOW_VAR_PREFIX + '/v0/')
-              or v.name in ('global_step:0', 'loss_scale:0',
-                            'loss_scale_normal_steps:0')), (
-                                'Invalid global variable: %s' % v)
+      assert v.name.startswith(
+          f'{variable_mgr_util.PS_SHADOW_VAR_PREFIX}/v0/') or v.name in (
+              'global_step:0',
+              'loss_scale:0',
+              'loss_scale_normal_steps:0',
+          ), f'Invalid global variable: {v}'
       # We store variables in the checkpoint with the shadow variable prefix
       # removed so we can evaluate checkpoints in non-distributed replicated
       # mode. The checkpoints can also be loaded for training in

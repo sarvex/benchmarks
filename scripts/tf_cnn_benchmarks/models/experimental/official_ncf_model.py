@@ -155,18 +155,16 @@ def _fp16_variable_creator(next_creator, **kwargs):
   """Variable creator to create variables in fp32 and cast them to fp16."""
   dtype = kwargs.get('dtype', None)
   initial_value = kwargs.get('initial_value', None)
-  if dtype is None:
-    if initial_value is not None and not callable(initial_value):
-      dtype = initial_value.dtype
-  if dtype == tf.float16:
-    if callable(initial_value):
-      new_initial_value = lambda: tf.cast(initial_value(), tf.float32)
-    else:
-      new_initial_value = tf.cast(initial_value, tf.float32)
-    kwargs['dtype'] = tf.float32
-    kwargs['initial_value'] = new_initial_value
-    var = next_creator(**kwargs)
-    return tf.cast(var, dtype=tf.float16)
-  else:
+  if (dtype is None and initial_value is not None
+      and not callable(initial_value)):
+    dtype = initial_value.dtype
+  if dtype != tf.float16:
     return next_creator(**kwargs)
+  new_initial_value = ((lambda: tf.cast(initial_value(), tf.float32))
+                       if callable(initial_value) else tf.cast(
+                           initial_value, tf.float32))
+  kwargs['dtype'] = tf.float32
+  kwargs['initial_value'] = new_initial_value
+  var = next_creator(**kwargs)
+  return tf.cast(var, dtype=tf.float16)
 

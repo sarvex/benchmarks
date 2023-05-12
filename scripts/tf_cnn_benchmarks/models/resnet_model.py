@@ -223,7 +223,7 @@ def residual_block(cnn, depth, stride, version, projection_shortcut=False):
     projection_shortcut: indicator of using projection shortcut, even if top
       size and depth are equal
   """
-  pre_activation = True if version == 'v2' else False
+  pre_activation = version == 'v2'
   input_layer = cnn.top_layer
   in_size = cnn.top_size
 
@@ -284,10 +284,7 @@ class ResnetModel(model_lib.CNNModel):
     batch_size = default_batch_sizes.get(model, 32)
     # The ResNet paper uses a starting lr of .1 at bs=256.
     self.base_lr_batch_size = 256
-    base_lr = 0.128
-    if params and params.resnet_base_lr:
-      base_lr = params.resnet_base_lr
-
+    base_lr = params.resnet_base_lr if params and params.resnet_base_lr else 0.128
     super(ResnetModel, self).__init__(model, 224, batch_size, base_lr,
                                       layer_counts, params=params)
     if 'v2' in model:
@@ -299,7 +296,7 @@ class ResnetModel(model_lib.CNNModel):
 
   def add_inference(self, cnn):
     if self.layer_counts is None:
-      raise ValueError('Layer counts not specified for %s' % self.get_model())
+      raise ValueError(f'Layer counts not specified for {self.get_model()}')
     # Drop batch size from shape logging.
     mlperf.logger.log(key=mlperf.tags.MODEL_HP_INITIAL_SHAPE,
                       value=cnn.top_layer.shape.as_list()[1:])
@@ -354,8 +351,7 @@ class ResnetModel(model_lib.CNNModel):
     base_lr = self.learning_rate
     if self.params.variable_update == 'replicated':
       base_lr = self.learning_rate / self.params.num_gpus
-    scaled_lr = base_lr * (batch_size / self.base_lr_batch_size)
-    return scaled_lr
+    return base_lr * (batch_size / self.base_lr_batch_size)
 
 
 def create_resnet50_model(params):
@@ -397,16 +393,13 @@ class ResnetCifar10Model(model_lib.CNNModel):
   """
 
   def __init__(self, model, layer_counts, params=None):
-    if 'v2' in model:
-      self.version = 'v2'
-    else:
-      self.version = 'v1'
+    self.version = 'v2' if 'v2' in model else 'v1'
     super(ResnetCifar10Model, self).__init__(
         model, 32, 128, 0.1, layer_counts, params=params)
 
   def add_inference(self, cnn):
     if self.layer_counts is None:
-      raise ValueError('Layer counts not specified for %s' % self.get_model())
+      raise ValueError(f'Layer counts not specified for {self.get_model()}')
 
     cnn.use_batch_norm = True
     cnn.batch_norm_config = {'decay': 0.9, 'epsilon': 1e-5, 'scale': True}
@@ -414,7 +407,7 @@ class ResnetCifar10Model(model_lib.CNNModel):
       cnn.conv(16, 3, 3, 1, 1, use_batch_norm=True)
     else:
       cnn.conv(16, 3, 3, 1, 1, activation=None, use_batch_norm=True)
-    for i in xrange(self.layer_counts[0]):
+    for _ in xrange(self.layer_counts[0]):
       # reshape to batch_size x 16 x 32 x 32
       residual_block(cnn, 16, 1, self.version)
     for i in xrange(self.layer_counts[1]):
@@ -435,7 +428,7 @@ class ResnetCifar10Model(model_lib.CNNModel):
     num_batches_per_epoch = int(50000 / batch_size)
     boundaries = num_batches_per_epoch * np.array([82, 123, 300],
                                                   dtype=np.int64)
-    boundaries = [x for x in boundaries]
+    boundaries = list(boundaries)
     values = [0.1, 0.01, 0.001, 0.0002]
     return tf.train.piecewise_constant(global_step, boundaries, values)
 

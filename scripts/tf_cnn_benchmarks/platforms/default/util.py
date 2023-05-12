@@ -45,11 +45,10 @@ def get_cluster_manager(params, config_proto):
 
 def get_command_to_run_python_module(module):
   """Returns a command to run a Python module."""
-  python_interpretter = sys.executable
-  if not python_interpretter:
+  if python_interpretter := sys.executable:
+    return [python_interpretter, os.path.join(_ROOT_PROJECT_DIR, f'{module}.py')]
+  else:
     raise ValueError('Could not find Python interpreter')
-  return [python_interpretter,
-          os.path.join(_ROOT_PROJECT_DIR, module + '.py')]
 
 
 def get_test_output_dir():

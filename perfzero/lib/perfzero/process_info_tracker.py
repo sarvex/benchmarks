@@ -34,10 +34,7 @@ class ProcessInfoTracker(object):
     self.process_info_log = open(os.path.join(output_dir, 'process_info.log'),
                                  'w')
     self.scheduler = sched.scheduler(time.time, time.sleep)
-    self.process_info = {}
-    self.process_info['max_rss'] = 0
-    self.process_info['max_vms'] = 0
-    self.process_info['max_cpu_percent'] = 0
+    self.process_info = {'max_rss': 0, 'max_vms': 0, 'max_cpu_percent': 0}
     self.exit_event = threading.Event()
     self.last_exception = None
     self.start_time = None
@@ -75,8 +72,7 @@ class ProcessInfoTracker(object):
       self.process_info['max_cpu_percent'] = max(
           self.process_info['max_cpu_percent'], cpu_percent)
 
-      entry = {}
-      entry['time'] = time.time() - self.start_time
+      entry = {'time': time.time() - self.start_time}
       entry['rss'] = memory_info.rss
       entry['vms'] = memory_info.vms
       entry['cpu_percent'] = cpu_percent
